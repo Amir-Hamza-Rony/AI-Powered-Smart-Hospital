@@ -1,0 +1,276 @@
+import type { Patient } from '@/data/types'
+
+function p(partial: Partial<Patient> & { id: string }): Patient {
+  return {
+    firstName: '—',
+    lastName: '—',
+    dob: '1990-01-01',
+    age: 35,
+    gender: 'Male',
+    bloodGroup: 'O+',
+    phone: '+880 1XXX-XXXXXX',
+    email: 'patient@smarthospital.test',
+    nid: '0000000000',
+    address: 'Dhaka, Bangladesh',
+    emergencyContact: '—',
+    emergencyPhone: '+880 1XXX-XXXXXX',
+    allergies: [],
+    chronicConditions: [],
+    surgeries: [],
+    currentMedications: [],
+    familyHistory: 'No significant family history recorded.',
+    notes: '',
+    status: 'Active',
+    lastVisit: '2026-09-20',
+    totalVisits: 3,
+    upcomingAppointments: 1,
+    history: [],
+    prescriptions: [],
+    labReports: [],
+    documents: [],
+    ...partial,
+  } as Patient
+}
+
+export const MOCK_PATIENTS: Patient[] = [
+  p({
+    id: 'PAT-2001', firstName: 'Rahim', lastName: 'Uddin', dob: '1981-03-14', age: 45, gender: 'Male',
+    bloodGroup: 'B+', phone: '+880 1712-335501', email: 'rahim.uddin@testmail.com', nid: '198103145512',
+    address: 'House 12, Road 5, Dhanmondi, Dhaka', emergencyContact: 'Salma Uddin (Wife)', emergencyPhone: '+880 1813-990211',
+    allergies: ['Penicillin'], chronicConditions: ['Hypertension', 'Type 2 Diabetes'], surgeries: ['Appendectomy (2009)'],
+    currentMedications: ['Metformin 500mg — twice daily', 'Losartan 50mg — once daily'],
+    familyHistory: 'Father had coronary artery disease; mother diabetic.',
+    notes: 'Monitor HbA1c every 3 months. BP borderline — lifestyle counselling given.',
+    status: 'Active', lastVisit: '2026-09-24', totalVisits: 14, upcomingAppointments: 2,
+    history: [
+      { id: 'V-1', date: '2026-09-24', visitType: 'Follow-up', doctor: 'Dr. Sarah Rahman', diagnosis: 'Hypertension — controlled', treatment: 'Continue Losartan; low-salt diet', notes: 'BP 132/84. Next review in 6 weeks.' },
+      { id: 'V-2', date: '2026-07-02', visitType: 'Consultation', doctor: 'Dr. Mahmudul Karim', diagnosis: 'Type 2 Diabetes', treatment: 'Metformin started; diet chart', notes: 'HbA1c 7.4%. Weight 78kg.' },
+      { id: 'V-3', date: '2026-03-18', visitType: 'Emergency', doctor: 'Dr. Mahmudul Karim', diagnosis: 'Acute gastritis', treatment: 'Omeprazole 20mg, 14 days', notes: 'Resolved fully.' },
+    ],
+    prescriptions: [
+      { id: 'RX-501', date: '2026-09-24', doctor: 'Dr. Sarah Rahman', medicines: 'Losartan 50mg, Amlodipine 5mg', dosage: 'Once daily', status: 'Active' },
+      { id: 'RX-498', date: '2026-07-02', doctor: 'Dr. Mahmudul Karim', medicines: 'Metformin 500mg', dosage: 'Twice daily after meals', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-901', date: '2026-09-20', test: 'HbA1c', result: '7.1%', status: 'Abnormal', doctor: 'Dr. Mahmudul Karim' },
+      { id: 'LAB-888', date: '2026-09-20', test: 'Lipid Profile', result: 'LDL 118 mg/dL', status: 'Normal', doctor: 'Dr. Sarah Rahman' },
+    ],
+    documents: [
+      { id: 'D-11', name: 'ECG-Sep-2026.pdf', type: 'Lab Report', date: '2026-09-20', size: '1.2 MB' },
+      { id: 'D-12', name: 'Prescription-Sep-2026.pdf', type: 'Prescription', date: '2026-09-24', size: '0.4 MB' },
+    ],
+  }),
+  p({
+    id: 'PAT-2002', firstName: 'Ayesha', lastName: 'Siddika', dob: '1994-07-22', age: 32, gender: 'Female',
+    bloodGroup: 'O+', phone: '+880 1833-771204', email: 'ayesha.s@testmail.com', nid: '199407227710',
+    address: 'Flat 4B, Gulshan Avenue, Dhaka', emergencyContact: 'Kamal Siddique (Husband)', emergencyPhone: '+880 1711-223390',
+    allergies: ['Sulfa drugs'], chronicConditions: ['Migraine'], surgeries: [],
+    currentMedications: ['Flunarizine 10mg — at bedtime (as needed)'],
+    familyHistory: 'Mother has migraine.',
+    notes: 'Migraine diary advised.',
+    status: 'Active', lastVisit: '2026-09-27', totalVisits: 6, upcomingAppointments: 1,
+    history: [
+      { id: 'V-1', date: '2026-09-27', visitType: 'Consultation', doctor: 'Dr. Kamal Hossain', diagnosis: 'Migraine without aura', treatment: 'Flunarizine; trigger avoidance', notes: 'MRI normal (Aug 2026).' },
+      { id: 'V-2', date: '2026-05-11', visitType: 'Follow-up', doctor: 'Dr. Kamal Hossain', diagnosis: 'Migraine — improving', treatment: 'Continue prophylaxis', notes: 'Attack frequency reduced.' },
+    ],
+    prescriptions: [
+      { id: 'RX-511', date: '2026-09-27', doctor: 'Dr. Kamal Hossain', medicines: 'Flunarizine 10mg', dosage: 'At bedtime', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-912', date: '2026-08-14', test: 'MRI Brain', result: 'No abnormality detected', status: 'Normal', doctor: 'Dr. Kamal Hossain' },
+    ],
+    documents: [{ id: 'D-21', name: 'MRI-Brain-Aug-2026.pdf', type: 'Imaging', date: '2026-08-14', size: '4.8 MB' }],
+  }),
+  p({
+    id: 'PAT-2003', firstName: 'Hasan', lastName: 'Mahmud', dob: '2018-11-05', age: 7, gender: 'Male',
+    bloodGroup: 'A+', phone: '+880 1922-664108', email: 'guardian.hasan@testmail.com', nid: 'N/A (minor)',
+    address: 'Sector 7, Uttara, Dhaka', emergencyContact: 'Mahmuda Akter (Mother)', emergencyPhone: '+880 1922-664109',
+    allergies: ['Dust mites'], chronicConditions: ['Asthma'], surgeries: [],
+    currentMedications: ['Salbutamol inhaler 100mcg — as needed'],
+    familyHistory: 'Father asthmatic.',
+    notes: 'Inhaler technique demonstrated to mother.',
+    status: 'Active', lastVisit: '2026-09-18', totalVisits: 9, upcomingAppointments: 1,
+    history: [
+      { id: 'V-1', date: '2026-09-18', visitType: 'Follow-up', doctor: 'Dr. Nusrat Jahan', diagnosis: 'Asthma — well controlled', treatment: 'Continue inhaler; flu vaccine advised', notes: 'Peak flow stable.' },
+      { id: 'V-2', date: '2026-06-30', visitType: 'Emergency', doctor: 'Dr. Nusrat Jahan', diagnosis: 'Asthma exacerbation (mild)', treatment: 'Nebulization; short steroid course', notes: 'Recovered in 5 days.' },
+    ],
+    prescriptions: [
+      { id: 'RX-522', date: '2026-09-18', doctor: 'Dr. Nusrat Jahan', medicines: 'Salbutamol inhaler 100mcg', dosage: 'As needed', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-920', date: '2026-09-18', test: 'Peak Flow', result: '210 L/min', status: 'Normal', doctor: 'Dr. Nusrat Jahan' },
+    ],
+    documents: [{ id: 'D-31', name: 'Asthma-Action-Plan.pdf', type: 'Other', date: '2026-09-18', size: '0.3 MB' }],
+  }),
+  p({
+    id: 'PAT-2004', firstName: 'Fatema', lastName: 'Begum', dob: '1966-01-30', age: 60, gender: 'Female',
+    bloodGroup: 'AB+', phone: '+880 1719-008822', email: 'fatema.b@testmail.com', nid: '196601300088',
+    address: 'Chawkbazar, Chattogram', emergencyContact: 'Jamal Hossain (Son)', emergencyPhone: '+880 1819-445566',
+    allergies: [], chronicConditions: ['Osteoarthritis', 'Hypertension'], surgeries: ['Cataract surgery, left eye (2022)'],
+    currentMedications: ['Paracetamol 665mg — as needed', 'Amlodipine 5mg — daily'],
+    familyHistory: 'No major hereditary illness.',
+    notes: 'Knee physiotherapy twice weekly.',
+    status: 'Critical', lastVisit: '2026-09-28', totalVisits: 21, upcomingAppointments: 3,
+    history: [
+      { id: 'V-1', date: '2026-09-28', visitType: 'Emergency', doctor: 'Dr. Tanvir Ahmed', diagnosis: 'Acute knee effusion, right', treatment: 'Aspiration; rest; review in 1 week', notes: 'Escalated — monitor closely.' },
+      { id: 'V-2', date: '2026-08-02', visitType: 'Follow-up', doctor: 'Dr. Tanvir Ahmed', diagnosis: 'Osteoarthritis, bilateral knees', treatment: 'Physiotherapy; weight management', notes: 'Grade III changes on X-ray.' },
+    ],
+    prescriptions: [
+      { id: 'RX-530', date: '2026-09-28', doctor: 'Dr. Tanvir Ahmed', medicines: 'Etoricoxib 90mg', dosage: 'Once daily, 7 days', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-931', date: '2026-09-28', test: 'X-ray Knee (R)', result: 'Joint effusion; OA grade III', status: 'Abnormal', doctor: 'Dr. Tanvir Ahmed' },
+    ],
+    documents: [{ id: 'D-41', name: 'Xray-Knee-Sep-2026.pdf', type: 'Imaging', date: '2026-09-28', size: '2.1 MB' }],
+  }),
+  p({
+    id: 'PAT-2005', firstName: 'Imran', lastName: 'Khan', dob: '1991-12-09', age: 34, gender: 'Male',
+    bloodGroup: 'O-', phone: '+880 1655-112390', email: 'imran.k@testmail.com', nid: '199112091123',
+    address: 'Mirpur 10, Dhaka', emergencyContact: 'Shila Khan (Sister)', emergencyPhone: '+880 1655-112391',
+    allergies: ['Latex'], chronicConditions: [], surgeries: [],
+    currentMedications: [],
+    familyHistory: 'Unremarkable.',
+    notes: 'Annual health check due Dec 2026.',
+    status: 'Recovered', lastVisit: '2026-08-15', totalVisits: 4, upcomingAppointments: 0,
+    history: [
+      { id: 'V-1', date: '2026-08-15', visitType: 'Follow-up', doctor: 'Dr. Mahmudul Karim', diagnosis: 'Viral fever — resolved', treatment: 'Supportive care', notes: 'Fully recovered.' },
+    ],
+    prescriptions: [],
+    labReports: [
+      { id: 'LAB-940', date: '2026-08-10', test: 'CBC', result: 'Within normal limits', status: 'Normal', doctor: 'Dr. Mahmudul Karim' },
+    ],
+    documents: [],
+  }),
+  p({
+    id: 'PAT-2006', firstName: 'Shirin', lastName: 'Akter', dob: '1999-05-17', age: 27, gender: 'Female',
+    bloodGroup: 'B-', phone: '+880 1744-903122', email: 'shirin.a@testmail.com', nid: '199905179031',
+    address: 'Zindabazar, Sylhet', emergencyContact: 'Rofiqul Islam (Father)', emergencyPhone: '+880 1744-903123',
+    allergies: [], chronicConditions: [], surgeries: [],
+    currentMedications: ['Iron + Folic acid — daily'],
+    familyHistory: '—',
+    notes: 'Antenatal case — 28 weeks. Next ANC in 2 weeks.',
+    status: 'Active', lastVisit: '2026-09-26', totalVisits: 7, upcomingAppointments: 2,
+    history: [
+      { id: 'V-1', date: '2026-09-26', visitType: 'Follow-up', doctor: 'Dr. Farhana Islam', diagnosis: 'Pregnancy 28 weeks — normal progress', treatment: 'ANC profile; iron supplementation', notes: 'BP 110/70. Fetal growth normal.' },
+    ],
+    prescriptions: [
+      { id: 'RX-541', date: '2026-09-26', doctor: 'Dr. Farhana Islam', medicines: 'Iron + Folic acid', dosage: 'Once daily', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-951', date: '2026-09-26', test: 'Hemoglobin', result: '10.8 g/dL', status: 'Abnormal', doctor: 'Dr. Farhana Islam' },
+    ],
+    documents: [{ id: 'D-61', name: 'USG-26-Sep-2026.pdf', type: 'Imaging', date: '2026-09-26', size: '1.8 MB' }],
+  }),
+  p({
+    id: 'PAT-2007', firstName: 'Abdul', lastName: 'Karim', dob: '1956-09-02', age: 70, gender: 'Male',
+    bloodGroup: 'A-', phone: '+880 1911-556700', email: 'abdul.karim@testmail.com', nid: '195609025567',
+    address: 'Boalia, Rajshahi', emergencyContact: 'Nasir Karim (Son)', emergencyPhone: '+880 1911-556701',
+    allergies: ['Aspirin'], chronicConditions: ['COPD', 'Ischemic heart disease'], surgeries: ['CABG (2018)'],
+    currentMedications: ['Tiotropium inhaler — daily', 'Atorvastatin 20mg — at bedtime'],
+    familyHistory: 'Brother had MI at 62.',
+    notes: 'Post-CABG; cardiac rehab completed. Avoid NSAIDs (aspirin allergy).',
+    status: 'Active', lastVisit: '2026-09-12', totalVisits: 30, upcomingAppointments: 1,
+    history: [
+      { id: 'V-1', date: '2026-09-12', visitType: 'Follow-up', doctor: 'Dr. Sarah Rahman', diagnosis: 'IHD — stable; COPD moderate', treatment: 'Continue dual therapy; spirometry yearly', notes: 'Echo: EF 55%.' },
+    ],
+    prescriptions: [
+      { id: 'RX-550', date: '2026-09-12', doctor: 'Dr. Sarah Rahman', medicines: 'Atorvastatin 20mg, Tiotropium 18mcg', dosage: 'As directed', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-960', date: '2026-09-12', test: 'Echocardiogram', result: 'EF 55%, no wall motion abnormality', status: 'Normal', doctor: 'Dr. Sarah Rahman' },
+    ],
+    documents: [{ id: 'D-71', name: 'Echo-Sep-2026.pdf', type: 'Lab Report', date: '2026-09-12', size: '0.9 MB' }],
+  }),
+  p({
+    id: 'PAT-2008', firstName: 'Mim', lastName: 'Chowdhury', dob: '2003-02-25', age: 23, gender: 'Female',
+    bloodGroup: 'AB-', phone: '+880 1633-228811', email: 'mim.c@testmail.com', nid: '200302252288',
+    address: 'Khulshi, Chattogram', emergencyContact: 'Rina Chowdhury (Mother)', emergencyPhone: '+880 1633-228812',
+    allergies: ['Nickel'], chronicConditions: ['Eczema'], surgeries: [],
+    currentMedications: ['Hydrocortisone cream 1% — topical'],
+    familyHistory: '—',
+    notes: 'Patch testing advised.',
+    status: 'Inactive', lastVisit: '2026-04-19', totalVisits: 2, upcomingAppointments: 0,
+    history: [
+      { id: 'V-1', date: '2026-04-19', visitType: 'Consultation', doctor: 'Dr. Arif Chowdhury', diagnosis: 'Contact dermatitis', treatment: 'Topical steroid; emollients', notes: 'Improving.' },
+    ],
+    prescriptions: [],
+    labReports: [],
+    documents: [],
+  }),
+  p({
+    id: 'PAT-2009', firstName: 'Sakib', lastName: 'Hasan', dob: '1988-08-08', age: 38, gender: 'Male',
+    bloodGroup: 'O+', phone: '+880 1800-445566', email: 'sakib.h@testmail.com', nid: '198808084455',
+    address: 'Banani, Dhaka', emergencyContact: 'Tania Hasan (Wife)', emergencyPhone: '+880 1800-445567',
+    allergies: [], chronicConditions: ['Allergic rhinitis'], surgeries: ['Septoplasty (2020)'],
+    currentMedications: ['Cetirizine 10mg — as needed'],
+    familyHistory: '—',
+    notes: 'Eye strain; screen-time counselling given.',
+    status: 'Active', lastVisit: '2026-09-21', totalVisits: 5, upcomingAppointments: 1,
+    history: [
+      { id: 'V-1', date: '2026-09-21', visitType: 'Consultation', doctor: 'Dr. Priya Saha', diagnosis: 'Refractive error — myopia', treatment: 'Spectacle prescription; review yearly', notes: 'Vision 6/36 → 6/6 with correction.' },
+    ],
+    prescriptions: [],
+    labReports: [
+      { id: 'LAB-970', date: '2026-09-21', test: 'Refraction', result: '-2.25 DS both eyes', status: 'Abnormal', doctor: 'Dr. Priya Saha' },
+    ],
+    documents: [{ id: 'D-91', name: 'Spectacle-Prescription.pdf', type: 'Prescription', date: '2026-09-21', size: '0.2 MB' }],
+  }),
+  p({
+    id: 'PAT-2010', firstName: 'Rina', lastName: 'Das', dob: '1978-06-11', age: 48, gender: 'Female',
+    bloodGroup: 'A+', phone: '+880 1722-778899', email: 'rina.das@testmail.com', nid: '197806117788',
+    address: 'Narinda, Dhaka', emergencyContact: 'Bimal Das (Husband)', emergencyPhone: '+880 1722-778900',
+    allergies: ['Iodine contrast'], chronicConditions: ['Hypothyroidism'], surgeries: [],
+    currentMedications: ['Levothyroxine 75mcg — every morning'],
+    familyHistory: 'Sister hypothyroid.',
+    notes: 'TSH due in 6 weeks.',
+    status: 'Recovered', lastVisit: '2026-07-29', totalVisits: 8, upcomingAppointments: 0,
+    history: [
+      { id: 'V-1', date: '2026-07-29', visitType: 'Follow-up', doctor: 'Dr. Mahmudul Karim', diagnosis: 'Hypothyroidism — euthyroid on therapy', treatment: 'Continue levothyroxine', notes: 'TSH 3.1.' },
+    ],
+    prescriptions: [
+      { id: 'RX-560', date: '2026-07-29', doctor: 'Dr. Mahmudul Karim', medicines: 'Levothyroxine 75mcg', dosage: 'Every morning, empty stomach', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-980', date: '2026-07-29', test: 'TSH', result: '3.1 mIU/L', status: 'Normal', doctor: 'Dr. Mahmudul Karim' },
+    ],
+    documents: [],
+  }),
+  p({
+    id: 'PAT-2011', firstName: 'Fahim', lastName: 'Rahman', dob: '1996-10-19', age: 29, gender: 'Male',
+    bloodGroup: 'B+', phone: '+880 1555-667788', email: 'fahim.r@testmail.com', nid: '199610196677',
+    address: 'Wari, Dhaka', emergencyContact: 'Nilufar Rahman (Mother)', emergencyPhone: '+880 1555-667789',
+    allergies: [], chronicConditions: [], surgeries: [],
+    currentMedications: [],
+    familyHistory: '—',
+    notes: 'Sports injury — ankle sprain grade II.',
+    status: 'Active', lastVisit: '2026-09-29', totalVisits: 3, upcomingAppointments: 2,
+    history: [
+      { id: 'V-1', date: '2026-09-29', visitType: 'Emergency', doctor: 'Dr. Tanvir Ahmed', diagnosis: 'Right ankle sprain, grade II', treatment: 'RICE; ankle brace; physio referral', notes: 'X-ray: no fracture.' },
+    ],
+    prescriptions: [
+      { id: 'RX-571', date: '2026-09-29', doctor: 'Dr. Tanvir Ahmed', medicines: 'Naproxen 500mg', dosage: 'Twice daily, 5 days', status: 'Active' },
+    ],
+    labReports: [
+      { id: 'LAB-991', date: '2026-09-29', test: 'X-ray Ankle (R)', result: 'No fracture seen', status: 'Normal', doctor: 'Dr. Tanvir Ahmed' },
+    ],
+    documents: [],
+  }),
+  p({
+    id: 'PAT-2012', firstName: 'Nabila', lastName: 'Khan', dob: '2000-04-03', age: 26, gender: 'Female',
+    bloodGroup: 'O+', phone: '+880 1999-001122', email: 'nabila.k@testmail.com', nid: '200004030011',
+    address: 'Lalmatia, Dhaka', emergencyContact: 'Adnan Khan (Brother)', emergencyPhone: '+880 1999-001123',
+    allergies: ['Pollen'], chronicConditions: [], surgeries: [],
+    currentMedications: [],
+    familyHistory: '—',
+    notes: 'New registration — baseline vitals recorded.',
+    status: 'Active', lastVisit: '2026-09-30', totalVisits: 1, upcomingAppointments: 1,
+    history: [
+      { id: 'V-1', date: '2026-09-30', visitType: 'Consultation', doctor: 'Dr. Mahmudul Karim', diagnosis: 'General checkup — healthy', treatment: 'Routine screening advised', notes: 'BMI 22.4.' },
+    ],
+    prescriptions: [],
+    labReports: [],
+    documents: [],
+  }),
+]
+
+export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
