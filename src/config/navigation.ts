@@ -29,19 +29,23 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard }],
   },
   {
-    label: 'Care',
-    items: [
-      { title: 'Patients', href: '/patients', icon: Users, badge: 'Phase 2' },
-      { title: 'Appointments', href: '/appointments', icon: CalendarDays, badge: 'Phase 2' },
-      { title: 'Doctors', href: '/doctors', icon: Stethoscope, badge: 'Phase 2' },
-    ],
+    label: 'Patient Management',
+    items: [{ title: 'Patients', href: '/patients', icon: Users }],
+  },
+  {
+    label: 'Doctor Management',
+    items: [{ title: 'Doctors', href: '/doctors', icon: Stethoscope }],
+  },
+  {
+    label: 'Appointments',
+    items: [{ title: 'Appointments', href: '/appointments', icon: CalendarDays }],
   },
   {
     label: 'Operations',
     items: [
-      { title: 'Pharmacy', href: '/pharmacy', icon: Pill, badge: 'Phase 2' },
-      { title: 'Laboratory', href: '/laboratory', icon: FlaskConical, badge: 'Phase 2' },
-      { title: 'Billing', href: '/billing', icon: Receipt, badge: 'Phase 2' },
+      { title: 'Pharmacy', href: '/pharmacy', icon: Pill, badge: 'Phase 3' },
+      { title: 'Laboratory', href: '/laboratory', icon: FlaskConical, badge: 'Phase 3' },
+      { title: 'Billing', href: '/billing', icon: Receipt, badge: 'Phase 3' },
     ],
   },
   {
