@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { Activity } from 'lucide-react'
-import { NAV_GROUPS } from '@/config/navigation'
+import { NAV_GROUPS, ALL_NAV_ITEMS } from '@/config/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher'
@@ -9,6 +9,14 @@ import { cn } from '@/lib/utils'
 interface SidebarProps {
   collapsed: boolean
   onNavigate?: () => void
+}
+
+// Longest matching nav href wins, so nested entries (e.g. /lab/orders)
+// don't also highlight their parent (e.g. /lab).
+function isActiveItem(pathname: string, href: string): boolean {
+  const matches = (h: string) => pathname === h || pathname.startsWith(h + '/')
+  if (!matches(href)) return false
+  return !ALL_NAV_ITEMS.some((other) => other.href.length > href.length && matches(other.href))
 }
 
 export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
@@ -24,7 +32,7 @@ export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
         {!collapsed && (
           <span className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-sm font-bold">Smart Hospital</span>
-            <span className="truncate text-[11px] text-muted-foreground">AI-Powered · Phase 1</span>
+            <span className="truncate text-[11px] text-muted-foreground">AI-Powered Hospital</span>
           </span>
         )}
       </div>
@@ -42,7 +50,7 @@ export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
             )}
             <ul className="space-y-1">
               {group.items.map((item) => {
-                const active = location.pathname === item.href || location.pathname.startsWith(item.href + '/')
+                const active = isActiveItem(location.pathname, item.href)
                 return (
                   <li key={item.href}>
                     <NavLink
@@ -79,7 +87,7 @@ export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
         <RoleSwitcher compact={collapsed} />
         {!collapsed && (
           <p className="mt-2 px-1 text-[11px] leading-snug text-muted-foreground">
-            Phase 3 modules — prescriptions, lab & pharmacy (mock).
+            Prescriptions, lab & pharmacy included.
           </p>
         )}
       </div>

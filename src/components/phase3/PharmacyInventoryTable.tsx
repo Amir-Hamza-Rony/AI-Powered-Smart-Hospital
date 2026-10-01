@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Eye, MoreHorizontal } from 'lucide-react'
+import { Eye, MoreHorizontal, Pencil } from 'lucide-react'
 import type { InventoryItem } from '@/data/types'
 import { StockStatusBadge } from '@/components/phase3/StatusBadges'
 import { Button } from '@/components/ui/button'
@@ -47,7 +47,7 @@ export function PharmacyInventoryTable({ items }: { items: InventoryItem[] }) {
                       <Link to={`/pharmacy/inventory/${i.id}`}><Eye className="mr-2 h-4 w-4" /> View</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="cursor-pointer">
-                      <Link to={`/pharmacy/inventory/${i.id}/edit`}><Eye className="mr-2 h-4 w-4" /> Edit</Link>
+                      <Link to={`/pharmacy/inventory/${i.id}/edit`}><Pencil className="mr-2 h-4 w-4" /> Edit</Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

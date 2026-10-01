@@ -34,10 +34,10 @@ export function Header({ collapsed, onToggleCollapse, onOpenMobileNav }: HeaderP
         {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
       </Button>
 
-      {/* Search (decorative for Phase 1) */}
+      {/* Search (decorative) */}
       <div className="relative hidden w-64 md:block lg:w-80">
         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search patients, doctors… (Phase 2)" className="pl-9" aria-label="Global search" />
+        <Input placeholder="Search patients, doctors…" className="pl-9" aria-label="Global search" />
       </div>
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
