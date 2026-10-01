@@ -7,6 +7,14 @@ import {
   FlaskConical,
   Receipt,
   Settings,
+  FileText,
+  CalendarClock,
+  BookOpen,
+  ClipboardList,
+  TestTube2,
+  Package,
+  Truck,
+  BellRing,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -41,12 +49,33 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ title: 'Appointments', href: '/appointments', icon: CalendarDays }],
   },
   {
-    label: 'Operations',
+    label: 'Prescription & Treatment',
     items: [
-      { title: 'Pharmacy', href: '/pharmacy', icon: Pill, badge: 'Phase 3' },
-      { title: 'Laboratory', href: '/laboratory', icon: FlaskConical, badge: 'Phase 3' },
-      { title: 'Billing', href: '/billing', icon: Receipt, badge: 'Phase 3' },
+      { title: 'Prescriptions', href: '/prescriptions', icon: FileText },
+      { title: 'Follow-ups', href: '/follow-ups', icon: CalendarClock },
+      { title: 'Medicines', href: '/medicines', icon: BookOpen },
     ],
+  },
+  {
+    label: 'Laboratory',
+    items: [
+      { title: 'Lab Dashboard', href: '/lab', icon: FlaskConical },
+      { title: 'Lab Orders', href: '/lab/orders', icon: ClipboardList },
+      { title: 'Lab Tests', href: '/lab/tests', icon: TestTube2 },
+    ],
+  },
+  {
+    label: 'Pharmacy',
+    items: [
+      { title: 'Pharmacy Dashboard', href: '/pharmacy', icon: Pill },
+      { title: 'Inventory', href: '/pharmacy/inventory', icon: Package },
+      { title: 'Dispensing', href: '/pharmacy/dispensing', icon: Truck },
+      { title: 'Alerts', href: '/pharmacy/alerts', icon: BellRing },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [{ title: 'Billing', href: '/billing', icon: Receipt, badge: 'Phase 4' }],
   },
   {
     label: 'System',

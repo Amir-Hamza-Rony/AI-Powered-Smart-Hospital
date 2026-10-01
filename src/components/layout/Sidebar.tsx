@@ -79,7 +79,7 @@ export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
         <RoleSwitcher compact={collapsed} />
         {!collapsed && (
           <p className="mt-2 px-1 text-[11px] leading-snug text-muted-foreground">
-            Phase 1 shell — modules land in Phase 2.
+            Phase 3 modules — prescriptions, lab & pharmacy (mock).
           </p>
         )}
       </div>
