@@ -71,7 +71,7 @@ export function DashboardPage() {
             </strong>
           </p>
         </div>
-        <Badge>Phase 2 · Mock data</Badge>
+        <Badge>Demo data</Badge>
       </div>
 
       {/* Patient statistics */}
@@ -95,8 +95,8 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* Phase 3 statistics (additive — Phase 1/2 sections untouched) */}
-      <section aria-label="Phase 3 statistics">
+      {/* Prescriptions · Lab · Pharmacy statistics (additive) */}
+      <section aria-label="Prescriptions, lab and pharmacy statistics">
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Prescriptions · Lab · Pharmacy</h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <Link to="/prescriptions"><StatCard icon={FileText} label="Active Prescriptions" value={activePrescriptions} hint="Currently active" /></Link>
@@ -162,9 +162,9 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Phase 1 shell checks (kept, condensed) */}
+      {/* Application shell status (kept, condensed) */}
       <section aria-label="Application shell status">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Application Shell · Phase 1</h2>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Application Shell</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {SHELL_CHECKS.map((c) => (
             <div key={c.title} className="rounded-lg border border-border bg-card p-4 shadow-sm">

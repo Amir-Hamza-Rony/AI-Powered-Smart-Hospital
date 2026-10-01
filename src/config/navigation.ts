@@ -75,7 +75,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'Operations',
-    items: [{ title: 'Billing', href: '/billing', icon: Receipt, badge: 'Phase 4' }],
+    items: [{ title: 'Billing', href: '/billing', icon: Receipt, badge: 'Soon' }],
   },
   {
     label: 'System',
