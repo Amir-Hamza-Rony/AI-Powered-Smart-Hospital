@@ -87,7 +87,7 @@ export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
         <RoleSwitcher compact={collapsed} />
         {!collapsed && (
           <p className="mt-2 px-1 text-[11px] leading-snug text-muted-foreground">
-            Prescriptions, lab & pharmacy included.
+            Prescriptions, lab, pharmacy & billing included.
           </p>
         )}
       </div>

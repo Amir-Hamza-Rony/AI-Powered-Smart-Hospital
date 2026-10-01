@@ -15,6 +15,14 @@ import {
   Package,
   Truck,
   BellRing,
+  CreditCard,
+  Wallet,
+  ShieldCheck,
+  Sparkles,
+  HeartPulse,
+  Bot,
+  Activity,
+  History,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -74,8 +82,27 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Operations',
-    items: [{ title: 'Billing', href: '/billing', icon: Receipt, badge: 'Soon' }],
+    label: 'Billing',
+    items: [
+      { title: 'Billing Dashboard', href: '/billing', icon: Receipt },
+      { title: 'Invoices', href: '/billing/invoices', icon: FileText },
+      { title: 'Payments', href: '/billing/payments', icon: CreditCard },
+      { title: 'Outstanding Dues', href: '/billing/dues', icon: Wallet },
+      { title: 'Insurance Claims', href: '/billing/claims', icon: ShieldCheck },
+      { title: 'Financial Ledger', href: '/billing/ledger', icon: BookOpen },
+    ],
+  },
+  {
+    label: 'AI Intelligence',
+    items: [
+      { title: 'AI Dashboard', href: '/ai', icon: Sparkles },
+      { title: 'Symptom Checker', href: '/ai/symptom-checker', icon: HeartPulse },
+      { title: 'Clinical Assistant', href: '/ai/clinical-assistant', icon: Bot },
+      { title: 'Prescription Advisory', href: '/ai/prescription-advisory', icon: Pill },
+      { title: 'No-Show Prediction', href: '/ai/no-show-prediction', icon: CalendarClock },
+      { title: 'Health Analytics', href: '/ai/health-analytics', icon: Activity },
+      { title: 'AI Activity', href: '/ai/activity', icon: History },
+    ],
   },
   {
     label: 'System',
