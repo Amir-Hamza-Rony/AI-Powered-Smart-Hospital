@@ -262,3 +262,217 @@ export interface DispensingRecord {
   dispensedQuantity: number
   status: DispensingStatus
 }
+
+/* ---------- Phase 4: Billing & Financial Operations ---------- */
+export type InvoiceStatus = 'Draft' | 'Pending' | 'Partially Paid' | 'Paid' | 'Overdue' | 'Cancelled'
+export type InvoiceServiceType = 'Consultation' | 'Laboratory' | 'Pharmacy' | 'Procedure' | 'Package' | 'Other'
+export type BillingCategory = 'Consultation' | 'Laboratory' | 'Medicine' | 'Procedure' | 'Other'
+export type PaymentMethod = 'Cash' | 'Card' | 'Mobile Banking' | 'Bank Transfer' | 'Insurance'
+export type PaymentStatus = 'Completed' | 'Pending' | 'Failed' | 'Refunded'
+export type ClaimStatus = 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Partially Approved' | 'Rejected' | 'Paid'
+export type LedgerType =
+  | 'Consultation Revenue'
+  | 'Laboratory Revenue'
+  | 'Pharmacy Revenue'
+  | 'Procedure Revenue'
+  | 'Refund'
+  | 'Insurance Payment'
+  | 'Adjustment'
+
+export interface InvoiceItem {
+  id: string
+  name: string
+  category: BillingCategory
+  quantity: number
+  unitPrice: number
+  discount: number
+  tax: number
+  total: number
+}
+
+export interface Invoice {
+  id: string
+  patientId: string
+  patientName: string
+  patientPhone: string
+  serviceType: InvoiceServiceType
+  issueDate: string
+  dueDate: string
+  paymentTerms: string
+  items: InvoiceItem[]
+  subtotal: number
+  discount: number
+  tax: number
+  total: number
+  paid: number
+  due: number
+  status: InvoiceStatus
+  paymentMethod?: PaymentMethod
+  referenceNumber?: string
+  notes?: string
+  createdBy: string
+}
+
+export interface Payment {
+  id: string
+  invoiceId: string
+  patientId: string
+  patientName: string
+  amount: number
+  paymentMethod: PaymentMethod
+  reference: string
+  status: PaymentStatus
+  date: string
+  recordedBy: string
+  notes?: string
+}
+
+export interface DueRecord {
+  id: string
+  patientId: string
+  patientName: string
+  patientPhone: string
+  invoiceId: string
+  invoiceDate: string
+  dueDate: string
+  totalAmount: number
+  paid: number
+  outstanding: number
+  daysOverdue: number
+  status: 'Due Soon' | 'Overdue' | 'Partially Paid'
+}
+
+export interface InsuranceClaim {
+  id: string
+  patientId: string
+  patientName: string
+  provider: string
+  policyNumber: string
+  invoiceId: string
+  claimAmount: number
+  approvedAmount: number
+  submittedDate: string
+  processedDate: string
+  status: ClaimStatus
+  notes?: string
+}
+
+export interface LedgerTransaction {
+  id: string
+  date: string
+  time: string
+  type: LedgerType
+  reference: string
+  description: string
+  debit: number
+  credit: number
+  balance: number
+  recordedBy: string
+}
+
+/* ---------- Phase 5: AI Clinical & Operational Intelligence (mock only) ---------- */
+export type AITriageLevel = 'Emergency' | 'Urgent' | 'Moderate' | 'Low'
+export type AISymptomSeverity = 'Mild' | 'Moderate' | 'Severe'
+
+export interface AISymptomEntry {
+  name: string
+  category: string
+  severity: AISymptomSeverity
+  duration: string
+  notes: string
+}
+
+export interface AIVitals {
+  temperature: string
+  bloodPressure: string
+  heartRate: string
+  oxygenSaturation: string
+  recentMedications: string
+  additionalNotes: string
+}
+
+export interface AITriageResult {
+  level: AITriageLevel
+  department: string
+  considerations: string[]
+  riskIndicators: string[]
+  nextAction: string
+  confidence: number
+}
+
+export interface AISymptomAssessment {
+  id: string
+  patientId: string
+  patientName: string
+  age: number
+  gender: Gender
+  conditions: string[]
+  allergies: string[]
+  symptoms: AISymptomEntry[]
+  vitals: AIVitals
+  result: AITriageResult
+  createdAt: string
+  status: 'Completed' | 'Reviewed' | 'Pending Review'
+}
+
+export interface AIClinicalMessage {
+  id: string
+  role: 'doctor' | 'ai'
+  text: string
+  timestamp: string
+}
+
+export type AIAdvisorySeverity = 'Informational' | 'Caution' | 'High Attention'
+
+export interface AIAdvisoryFinding {
+  category: string
+  severity: AIAdvisorySeverity
+  message: string
+}
+
+export interface AIProposedMedicine {
+  medicine: string
+  dose: string
+  frequency: string
+  duration: string
+  route: string
+}
+
+export interface AIPrescriptionAdvisory {
+  findings: AIAdvisoryFinding[]
+  overallSeverity: AIAdvisorySeverity
+  summary: string
+  generatedAt: string
+}
+
+export type AINoShowRisk = 'High' | 'Medium' | 'Low'
+export type AIReminderPriority = 'High' | 'Normal' | 'Low'
+
+export interface AINoShowPrediction {
+  appointmentId: string
+  patientId: string
+  patientName: string
+  doctorName: string
+  specialty: string
+  date: string
+  time: string
+  previousAttendance: string
+  riskLevel: AINoShowRisk
+  riskScore: number
+  reminderPriority: AIReminderPriority
+  factors: string[]
+}
+
+export type AIActivityStatus = 'Completed' | 'Reviewed' | 'Pending Review'
+export type AIModule = 'Symptom Checker' | 'Clinical Assistant' | 'Prescription Advisory' | 'No-Show Prediction' | 'Health Analytics'
+
+export interface AIActivityLog {
+  id: string
+  user: string
+  role: string
+  module: AIModule
+  patient: string
+  action: string
+  timestamp: string
+  status: AIActivityStatus
+}

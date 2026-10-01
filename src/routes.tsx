@@ -26,11 +26,28 @@ import { InventoryDetailPage } from '@/pages/pharmacy/InventoryDetailPage'
 import { InventoryFormPage } from '@/pages/pharmacy/InventoryFormPage'
 import { DispensingPage } from '@/pages/pharmacy/DispensingPage'
 import { AlertsPage } from '@/pages/pharmacy/AlertsPage'
+import { BillingDashboardPage } from '@/pages/billing/BillingDashboardPage'
+import { InvoiceListPage } from '@/pages/billing/InvoiceListPage'
+import { CreateInvoicePage } from '@/pages/billing/CreateInvoicePage'
+import { InvoiceDetailPage } from '@/pages/billing/InvoiceDetailPage'
+import { PaymentsPage } from '@/pages/billing/PaymentsPage'
+import { DuesPage } from '@/pages/billing/DuesPage'
+import { ClaimsPage } from '@/pages/billing/ClaimsPage'
+import { LedgerPage } from '@/pages/billing/LedgerPage'
+import { AIDashboardPage } from '@/pages/ai/AIDashboardPage'
+import { SymptomCheckerPage } from '@/pages/ai/SymptomCheckerPage'
+import { ClinicalAssistantPage } from '@/pages/ai/ClinicalAssistantPage'
+import { PrescriptionAdvisoryPage } from '@/pages/ai/PrescriptionAdvisoryPage'
+import { NoShowPredictionPage } from '@/pages/ai/NoShowPredictionPage'
+import { HealthAnalyticsPage } from '@/pages/ai/HealthAnalyticsPage'
+import { AIActivityPage } from '@/pages/ai/AIActivityPage'
 
 /**
- * Phase 3 routing structure.
+ * Phase 5 routing structure.
  * Phase 1 shell + Phase 2 (patients/doctors/appointments) preserved.
  * Phase 3 adds prescriptions, lab and pharmacy (mock data, frontend-only).
+ * Phase 4 adds billing & financial operations (mock data, frontend-only).
+ * Phase 5 adds AI clinical & operational intelligence (mock AI, frontend-only).
  */
 export function AppRoutes() {
   return (
@@ -77,7 +94,23 @@ export function AppRoutes() {
         {/* Legacy Phase-2 placeholder paths keep working */}
         <Route path="/laboratory" element={<LabDashboardPage />} />
 
-        <Route path="/billing" element={<PlaceholderPage title="Billing" />} />
+        <Route path="/billing" element={<BillingDashboardPage />} />
+        <Route path="/billing/invoices" element={<InvoiceListPage />} />
+        <Route path="/billing/invoices/new" element={<CreateInvoicePage />} />
+        <Route path="/billing/invoices/:id" element={<InvoiceDetailPage />} />
+        <Route path="/billing/payments" element={<PaymentsPage />} />
+        <Route path="/billing/dues" element={<DuesPage />} />
+        <Route path="/billing/claims" element={<ClaimsPage />} />
+        <Route path="/billing/ledger" element={<LedgerPage />} />
+
+        <Route path="/ai" element={<AIDashboardPage />} />
+        <Route path="/ai/symptom-checker" element={<SymptomCheckerPage />} />
+        <Route path="/ai/clinical-assistant" element={<ClinicalAssistantPage />} />
+        <Route path="/ai/prescription-advisory" element={<PrescriptionAdvisoryPage />} />
+        <Route path="/ai/no-show-prediction" element={<NoShowPredictionPage />} />
+        <Route path="/ai/health-analytics" element={<HealthAnalyticsPage />} />
+        <Route path="/ai/activity" element={<AIActivityPage />} />
+
         <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

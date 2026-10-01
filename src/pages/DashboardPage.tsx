@@ -16,6 +16,12 @@ import {
   FlaskConical,
   Package,
   BellRing,
+  Banknote,
+  Wallet,
+  Receipt,
+  Sparkles,
+  UserX,
+  AlertTriangle,
 } from 'lucide-react'
 import { useRole } from '@/context/RoleContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -25,6 +31,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatCard } from '@/components/shared/StatCard'
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge'
+import { formatBDT } from '@/data/billing'
+import { AI_DASHBOARD_STATS, MOCK_AI_ACTIVITY } from '@/data/ai'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -40,7 +48,7 @@ const TODAY = '2026-09-30'
 export function DashboardPage() {
   const { roleMeta } = useRole()
   const { mode, resolved } = useTheme()
-  const { patients, appointments, prescriptions, followUps, labOrders, inventory } = useHospitalStore()
+  const { patients, appointments, prescriptions, followUps, labOrders, inventory, invoices, payments } = useHospitalStore()
 
   const totalPatients = patients.length
   const newPatients = patients.filter((p) => p.totalVisits <= 1).length
@@ -58,6 +66,11 @@ export function DashboardPage() {
   const readyLabs = labOrders.filter((o) => o.status === 'Ready').length
   const lowStock = inventory.filter((i) => i.stockStatus === 'Low Stock').length
   const nearExpiry = inventory.filter((i) => i.stockStatus === 'Near Expiry').length
+
+  const todaysRevenue = payments.filter((p) => p.date === TODAY && p.status === 'Completed').reduce((s, p) => s + p.amount, 0)
+  const pendingPayments = invoices.filter((i) => i.status === 'Pending').reduce((s, i) => s + i.due, 0)
+  const outstandingDues = invoices.reduce((s, i) => s + i.due, 0)
+  const recentTransactions = [...payments].slice(0, 4)
 
   return (
     <div className="space-y-6">
@@ -106,6 +119,93 @@ export function DashboardPage() {
           <Link to="/pharmacy/alerts"><StatCard icon={Package} label="Low Stock" value={lowStock} hint="Reorder soon" /></Link>
           <Link to="/pharmacy/alerts"><StatCard icon={BellRing} label="Near Expiry" value={nearExpiry} hint="Check batches" /></Link>
         </div>
+      </section>
+
+      {/* Billing / financial summary (Phase 4, additive) */}
+      <section aria-label="Billing summary">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Billing & Finance</h2>
+          <Link to="/billing" className="text-xs font-medium text-primary hover:underline">
+            Open billing →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <Link to="/billing"><StatCard icon={Banknote} label="Today's Revenue" value={formatBDT(todaysRevenue)} hint={TODAY} /></Link>
+          <Link to="/billing/payments"><StatCard icon={Hourglass} label="Pending Payments" value={formatBDT(pendingPayments)} hint="Awaiting collection" /></Link>
+          <Link to="/billing/dues"><StatCard icon={Wallet} label="Outstanding Dues" value={formatBDT(outstandingDues)} hint="Across open invoices" /></Link>
+        </div>
+        <Card className="mt-3">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-4 w-4" /> Recent Transactions
+            </CardTitle>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/billing/payments">View all</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {recentTransactions.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">No transactions yet.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {recentTransactions.map((t) => (
+                  <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <div className="min-w-0">
+                      <Link to={`/billing/invoices/${t.invoiceId}`} className="font-medium hover:text-primary hover:underline">
+                        {t.id} — {t.patientName}
+                      </Link>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {t.invoiceId} · {t.paymentMethod} · {formatBDT(t.amount)}
+                      </p>
+                    </div>
+                    <Badge>{t.status}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* AI Intelligence summary (Phase 5, additive, mock data) */}
+      <section aria-label="AI insights summary">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">AI Insights</h2>
+          <Link to="/ai" className="text-xs font-medium text-primary hover:underline">
+            Open AI hub →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Link to="/ai/symptom-checker"><StatCard icon={AlertTriangle} label="High-Risk Cases" value={AI_DASHBOARD_STATS.highRiskCases} hint="Mock triage flags" /></Link>
+          <Link to="/ai/prescription-advisory"><StatCard icon={FileText} label="Prescription Reviews" value={AI_DASHBOARD_STATS.prescriptionReviews} hint="Pending sign-off" /></Link>
+          <Link to="/ai/no-show-prediction"><StatCard icon={UserX} label="High-Risk Appointments" value={AI_DASHBOARD_STATS.predictedNoShows} hint="Likely no-shows" /></Link>
+          <Link to="/ai/activity"><StatCard icon={Sparkles} label="AI Queries" value={AI_DASHBOARD_STATS.clinicalQueries} hint="This week (mock)" /></Link>
+        </div>
+        <Card className="mt-3">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4" /> Recent AI Activity
+            </CardTitle>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/ai/activity">View all</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {MOCK_AI_ACTIVITY.slice(0, 3).map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium">{a.action}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {a.module} · {a.user} · {a.timestamp}
+                    </p>
+                  </div>
+                  <Badge>{a.status}</Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       </section>
 
       {/* Appointment overview: chart + today's list */}
