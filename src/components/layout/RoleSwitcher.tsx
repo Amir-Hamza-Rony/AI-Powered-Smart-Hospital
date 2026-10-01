@@ -41,7 +41,7 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={compact ? 'center' : 'start'} className="w-64">
-        <DropdownMenuLabel>Switch mock role (Phase 1)</DropdownMenuLabel>
+        <DropdownMenuLabel>Switch mock role</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {MOCK_ROLES.map((r) => (
           <DropdownMenuItem
