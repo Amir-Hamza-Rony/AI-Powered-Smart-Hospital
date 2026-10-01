@@ -23,6 +23,8 @@ import {
   Bot,
   Activity,
   History,
+  Zap,
+  Bell,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -103,6 +105,21 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: 'Health Analytics', href: '/ai/health-analytics', icon: Activity },
       { title: 'AI Activity', href: '/ai/activity', icon: History },
     ],
+  },
+  {
+    label: 'Automation',
+    items: [
+      { title: 'Automation Dashboard', href: '/automation', icon: Zap },
+      { title: 'Appointment Reminders', href: '/automation/reminders', icon: CalendarClock },
+      { title: 'Lab Alerts', href: '/automation/lab-alerts', icon: FlaskConical },
+      { title: 'Stock Alerts', href: '/automation/stock-alerts', icon: Package },
+      { title: 'Live Queue', href: '/automation/queue', icon: Users },
+      { title: 'Activity', href: '/automation/activity', icon: Activity },
+    ],
+  },
+  {
+    label: 'Notifications',
+    items: [{ title: 'Notifications', href: '/notifications', icon: Bell }],
   },
   {
     label: 'System',

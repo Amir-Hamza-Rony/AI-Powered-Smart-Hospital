@@ -476,3 +476,133 @@ export interface AIActivityLog {
   timestamp: string
   status: AIActivityStatus
 }
+
+/* ---------- Phase 6: Workflow Automation & Real-Time Operations (mock only) ---------- */
+export type WorkflowStatus = 'Active' | 'Paused' | 'Live'
+export type WorkflowId = 'appointment-reminder' | 'lab-alert' | 'stock-alert' | 'queue'
+
+export interface WorkflowAutomation {
+  id: WorkflowId
+  name: string
+  description: string
+  status: WorkflowStatus
+  enabled: boolean
+  lastExecution: string
+  nextExecution: string
+  eventCount: number
+  href: string
+}
+
+export type ReminderStatus = 'Scheduled' | 'Pending' | 'Sent' | 'Failed' | 'Cancelled'
+export type ReminderChannel = 'SMS' | 'Email' | 'In-App'
+
+export interface ReminderHistoryEntry {
+  at: string
+  channel: ReminderChannel
+  result: 'Sent' | 'Failed'
+}
+
+export interface AppointmentReminder {
+  id: string
+  appointmentId: string
+  patientId: string
+  patientName: string
+  doctorName: string
+  specialty: string
+  date: string
+  time: string
+  status: ReminderStatus
+  noShowRisk: 'High' | 'Medium' | 'Low'
+  channels: ReminderChannel[]
+  lastReminder: string
+  messagePreview: string
+  history: ReminderHistoryEntry[]
+}
+
+export type LabAlertStatus = 'Processing' | 'Ready' | 'Reviewed' | 'Notification Sent'
+export type NotificationState = 'Pending' | 'Sent'
+
+export interface LabCompletionAlert {
+  id: string
+  labOrderId: string
+  patientName: string
+  test: string
+  orderedBy: string
+  status: LabAlertStatus
+  completedAt: string
+  doctorNotification: NotificationState
+  patientNotification: NotificationState
+  resultStatus: 'Normal' | 'Abnormal' | 'Pending'
+  recipients: string[]
+  channels: ReminderChannel[]
+  history: string[]
+}
+
+export type StockAlertStatus = 'Normal' | 'Low' | 'Critical' | 'Near Expiry'
+
+export interface StockAlert {
+  id: string
+  medicine: string
+  sku: string
+  currentStock: number
+  minimumLevel: number
+  status: StockAlertStatus
+  expiryDate: string
+  supplier: string
+  lastUpdated: string
+  resolved: boolean
+}
+
+export interface PurchaseRequest {
+  id: string
+  medicine: string
+  sku: string
+  currentStock: number
+  requiredQuantity: number
+  supplier: string
+  priority: 'High' | 'Normal' | 'Low'
+  notes: string
+  createdAt: string
+  status: 'Requested' | 'Approved'
+}
+
+export type QueueStatus = 'Waiting' | 'Called' | 'In Consultation' | 'Completed' | 'Skipped'
+export type QueuePriority = 'Normal' | 'Priority' | 'Emergency'
+
+export interface QueuePatient {
+  serial: string
+  patientName: string
+  patientId: string
+  doctorName: string
+  department: string
+  status: QueueStatus
+  arrivalTime: string
+  waitingMinutes: number
+  priority: QueuePriority
+}
+
+export type AutomationEventStatus = 'Success' | 'Pending' | 'Failed' | 'Warning'
+export type AutomationWorkflow = 'Appointment Reminders' | 'Lab Alerts' | 'Stock Alerts' | 'Waiting Queue' | 'System'
+
+export interface AutomationEvent {
+  id: string
+  workflow: AutomationWorkflow
+  eventType: string
+  description: string
+  triggeredAt: string
+  status: AutomationEventStatus
+  triggeredBy: string
+}
+
+export type NotificationCategory = 'Appointments' | 'Laboratory' | 'Pharmacy' | 'Queue' | 'System'
+
+export interface HospitalNotification {
+  id: string
+  category: NotificationCategory
+  title: string
+  description: string
+  time: string
+  read: boolean
+  module: string
+  href: string
+}

@@ -41,6 +41,13 @@ import { PrescriptionAdvisoryPage } from '@/pages/ai/PrescriptionAdvisoryPage'
 import { NoShowPredictionPage } from '@/pages/ai/NoShowPredictionPage'
 import { HealthAnalyticsPage } from '@/pages/ai/HealthAnalyticsPage'
 import { AIActivityPage } from '@/pages/ai/AIActivityPage'
+import { AutomationDashboardPage } from '@/pages/automation/AutomationDashboardPage'
+import { RemindersPage } from '@/pages/automation/RemindersPage'
+import { LabAlertsPage } from '@/pages/automation/LabAlertsPage'
+import { StockAlertsPage } from '@/pages/automation/StockAlertsPage'
+import { QueuePage } from '@/pages/automation/QueuePage'
+import { ActivityPage } from '@/pages/automation/ActivityPage'
+import { NotificationsPage } from '@/pages/notifications/NotificationsPage'
 
 /**
  * Phase 5 routing structure.
@@ -48,6 +55,7 @@ import { AIActivityPage } from '@/pages/ai/AIActivityPage'
  * Phase 3 adds prescriptions, lab and pharmacy (mock data, frontend-only).
  * Phase 4 adds billing & financial operations (mock data, frontend-only).
  * Phase 5 adds AI clinical & operational intelligence (mock AI, frontend-only).
+ * Phase 6 adds workflow automation & real-time operations (mock simulation, frontend-only).
  */
 export function AppRoutes() {
   return (
@@ -110,6 +118,15 @@ export function AppRoutes() {
         <Route path="/ai/no-show-prediction" element={<NoShowPredictionPage />} />
         <Route path="/ai/health-analytics" element={<HealthAnalyticsPage />} />
         <Route path="/ai/activity" element={<AIActivityPage />} />
+
+        <Route path="/automation" element={<AutomationDashboardPage />} />
+        <Route path="/automation/reminders" element={<RemindersPage />} />
+        <Route path="/automation/lab-alerts" element={<LabAlertsPage />} />
+        <Route path="/automation/stock-alerts" element={<StockAlertsPage />} />
+        <Route path="/automation/queue" element={<QueuePage />} />
+        <Route path="/automation/activity" element={<ActivityPage />} />
+
+        <Route path="/notifications" element={<NotificationsPage />} />
 
         <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
         <Route path="*" element={<NotFoundPage />} />
