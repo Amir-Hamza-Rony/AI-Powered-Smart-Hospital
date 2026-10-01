@@ -12,6 +12,10 @@ import {
   UserPlus,
   Users,
   XCircle,
+  FileText,
+  FlaskConical,
+  Package,
+  BellRing,
 } from 'lucide-react'
 import { useRole } from '@/context/RoleContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -36,7 +40,7 @@ const TODAY = '2026-09-30'
 export function DashboardPage() {
   const { roleMeta } = useRole()
   const { mode, resolved } = useTheme()
-  const { patients, appointments } = useHospitalStore()
+  const { patients, appointments, prescriptions, followUps, labOrders, inventory } = useHospitalStore()
 
   const totalPatients = patients.length
   const newPatients = patients.filter((p) => p.totalVisits <= 1).length
@@ -47,6 +51,13 @@ export function DashboardPage() {
   const completed = appointments.filter((a) => a.status === 'Completed').length
   const cancelled = appointments.filter((a) => a.status === 'Cancelled').length
   const confirmed = appointments.filter((a) => a.status === 'Confirmed').length
+
+  const activePrescriptions = prescriptions.filter((p) => p.status === 'Active').length
+  const followUpsDue = followUps.filter((f) => f.status === 'Upcoming' || f.status === 'Due Today').length
+  const pendingLabs = labOrders.filter((o) => o.status === 'Pending').length
+  const readyLabs = labOrders.filter((o) => o.status === 'Ready').length
+  const lowStock = inventory.filter((i) => i.stockStatus === 'Low Stock').length
+  const nearExpiry = inventory.filter((i) => i.stockStatus === 'Near Expiry').length
 
   return (
     <div className="space-y-6">
@@ -81,6 +92,19 @@ export function DashboardPage() {
           <StatCard icon={Hourglass} label="Pending" value={pending} hint="Awaiting confirmation" />
           <StatCard icon={CheckCircle2} label="Completed" value={completed} hint="Finished visits" />
           <StatCard icon={XCircle} label="Cancelled" value={cancelled} hint="Terminal state" />
+        </div>
+      </section>
+
+      {/* Phase 3 statistics (additive — Phase 1/2 sections untouched) */}
+      <section aria-label="Phase 3 statistics">
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Prescriptions · Lab · Pharmacy</h2>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <Link to="/prescriptions"><StatCard icon={FileText} label="Active Prescriptions" value={activePrescriptions} hint="Currently active" /></Link>
+          <Link to="/follow-ups"><StatCard icon={CalendarClock} label="Follow-ups Due" value={followUpsDue} hint="Upcoming + due today" /></Link>
+          <Link to="/lab"><StatCard icon={FlaskConical} label="Pending Lab Orders" value={pendingLabs} hint={`${readyLabs} ready`} /></Link>
+          <Link to="/lab"><StatCard icon={FlaskConical} label="Ready Reports" value={readyLabs} hint="Awaiting delivery" /></Link>
+          <Link to="/pharmacy/alerts"><StatCard icon={Package} label="Low Stock" value={lowStock} hint="Reorder soon" /></Link>
+          <Link to="/pharmacy/alerts"><StatCard icon={BellRing} label="Near Expiry" value={nearExpiry} hint="Check batches" /></Link>
         </div>
       </section>
 

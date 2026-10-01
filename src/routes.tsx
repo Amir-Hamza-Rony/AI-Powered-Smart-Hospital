@@ -11,11 +11,26 @@ import { DoctorFormPage } from '@/pages/doctors/DoctorFormPage'
 import { AppointmentsPage } from '@/pages/appointments/AppointmentsPage'
 import { AppointmentDetailPage } from '@/pages/appointments/AppointmentDetailPage'
 import { NewAppointmentPage } from '@/pages/appointments/NewAppointmentPage'
+import { PrescriptionsPage } from '@/pages/prescriptions/PrescriptionsPage'
+import { PrescriptionDetailPage } from '@/pages/prescriptions/PrescriptionDetailPage'
+import { NewPrescriptionPage } from '@/pages/prescriptions/NewPrescriptionPage'
+import { MedicinesPage } from '@/pages/medicines/MedicinesPage'
+import { FollowUpsPage } from '@/pages/followups/FollowUpsPage'
+import { LabDashboardPage } from '@/pages/lab/LabDashboardPage'
+import { LabOrderDetailPage } from '@/pages/lab/LabOrderDetailPage'
+import { NewLabOrderPage } from '@/pages/lab/NewLabOrderPage'
+import { LabTestsPage } from '@/pages/lab/LabTestsPage'
+import { PharmacyDashboardPage } from '@/pages/pharmacy/PharmacyDashboardPage'
+import { InventoryPage } from '@/pages/pharmacy/InventoryPage'
+import { InventoryDetailPage } from '@/pages/pharmacy/InventoryDetailPage'
+import { InventoryFormPage } from '@/pages/pharmacy/InventoryFormPage'
+import { DispensingPage } from '@/pages/pharmacy/DispensingPage'
+import { AlertsPage } from '@/pages/pharmacy/AlertsPage'
 
 /**
- * Phase 2 routing structure.
- * Patients, Doctors and Appointments are fully implemented (mock data).
- * Pharmacy / Laboratory / Billing / Settings remain placeholders.
+ * Phase 3 routing structure.
+ * Phase 1 shell + Phase 2 (patients/doctors/appointments) preserved.
+ * Phase 3 adds prescriptions, lab and pharmacy (mock data, frontend-only).
  */
 export function AppRoutes() {
   return (
@@ -38,8 +53,30 @@ export function AppRoutes() {
         <Route path="/appointments/new" element={<NewAppointmentPage />} />
         <Route path="/appointments/:id" element={<AppointmentDetailPage />} />
 
-        <Route path="/pharmacy" element={<PlaceholderPage title="Pharmacy" />} />
-        <Route path="/laboratory" element={<PlaceholderPage title="Laboratory" />} />
+        <Route path="/prescriptions" element={<PrescriptionsPage />} />
+        <Route path="/prescriptions/new" element={<NewPrescriptionPage />} />
+        <Route path="/prescriptions/:id" element={<PrescriptionDetailPage />} />
+
+        <Route path="/medicines" element={<MedicinesPage />} />
+        <Route path="/follow-ups" element={<FollowUpsPage />} />
+
+        <Route path="/lab" element={<LabDashboardPage />} />
+        <Route path="/lab/orders" element={<LabDashboardPage />} />
+        <Route path="/lab/tests" element={<LabTestsPage />} />
+        <Route path="/lab/new" element={<NewLabOrderPage />} />
+        <Route path="/lab/:id" element={<LabOrderDetailPage />} />
+
+        <Route path="/pharmacy" element={<PharmacyDashboardPage />} />
+        <Route path="/pharmacy/inventory" element={<InventoryPage />} />
+        <Route path="/pharmacy/inventory/new" element={<InventoryFormPage mode="add" />} />
+        <Route path="/pharmacy/inventory/:id" element={<InventoryDetailPage />} />
+        <Route path="/pharmacy/inventory/:id/edit" element={<InventoryFormPage mode="edit" />} />
+        <Route path="/pharmacy/dispensing" element={<DispensingPage />} />
+        <Route path="/pharmacy/alerts" element={<AlertsPage />} />
+
+        {/* Legacy Phase-2 placeholder paths keep working */}
+        <Route path="/laboratory" element={<LabDashboardPage />} />
+
         <Route path="/billing" element={<PlaceholderPage title="Billing" />} />
         <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
         <Route path="*" element={<NotFoundPage />} />
