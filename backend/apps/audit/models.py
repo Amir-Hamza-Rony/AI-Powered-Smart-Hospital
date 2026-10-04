@@ -36,6 +36,11 @@ class AuditAction(models.TextChoices):
     APPOINTMENT_CREATED = "APPOINTMENT_CREATED", "Appointment created"
     APPOINTMENT_UPDATED = "APPOINTMENT_UPDATED", "Appointment updated"
     INVOICE_CREATED = "INVOICE_CREATED", "Invoice created"
+    INVOICE_UPDATED = "INVOICE_UPDATED", "Invoice updated"
+    INVOICE_ISSUED = "INVOICE_ISSUED", "Invoice issued"
+    INVOICE_CANCELLED = "INVOICE_CANCELLED", "Invoice cancelled"
+    PAYMENT_CREATED = "PAYMENT_CREATED", "Payment recorded"
+    PAYMENT_REVERSED = "PAYMENT_REVERSED", "Payment reversed"
 
 
 class AuditLog(models.Model):

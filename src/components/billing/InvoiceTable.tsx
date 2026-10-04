@@ -40,7 +40,7 @@ export function InvoiceTable({
             <TableRow key={inv.id}>
               <TableCell>
                 <Link to={`/billing/invoices/${inv.id}`} className="whitespace-nowrap font-medium text-primary hover:underline">
-                  {inv.id}
+                  {inv.invoiceNumber ?? inv.id}
                 </Link>
               </TableCell>
               <TableCell className="whitespace-nowrap">{inv.patientName}</TableCell>

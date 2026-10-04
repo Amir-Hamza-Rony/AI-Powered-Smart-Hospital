@@ -1,64 +1,73 @@
-import { useMemo, useState } from 'react'
-import { Download, Search } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
-import { useToast } from '@/context/ToastContext'
+import { useState } from 'react'
+import { Search } from 'lucide-react'
 import { formatBDT } from '@/data/billing'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
-import { StatCard } from '@/components/shared/StatCard'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { LedgerTable } from '@/components/billing/LedgerTable'
+import { StatCard } from '@/components/shared/StatCard'
+import { listLedger } from '@/lib/api/billing'
+import { toLedgerTransaction } from '@/lib/api/adapters'
+import { useApiList } from '@/lib/api/hooks'
+import type { LedgerTransaction } from '@/data/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Banknote, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import { Banknote, TrendingDown, TrendingUp, Wallet, Download } from 'lucide-react'
+import { useToast } from '@/context/ToastContext'
 
 const PAGE_SIZE = 10
 const TYPES = ['Consultation Revenue', 'Laboratory Revenue', 'Pharmacy Revenue', 'Procedure Revenue', 'Refund', 'Insurance Payment', 'Adjustment'] as const
 
 export function LedgerPage() {
-  const { ledger } = useHospitalStore()
   const { success } = useToast()
   const [query, setQuery] = useState('')
   const [type, setType] = useState('all')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [page, setPage] = useState(1)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return ledger.filter((t) => {
-      if (type !== 'all' && t.type !== type) return false
-      if (from && t.date < from) return false
-      if (to && t.date > to) return false
-      if (!q) return true
-      return (
-        t.id.toLowerCase().includes(q) ||
-        t.reference.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        t.recordedBy.toLowerCase().includes(q)
-      )
+  const list = useApiList(
+    ({ page, page_size }) =>
+      listLedger({
+        search: query.trim() || undefined,
+        type: type !== 'all' ? type : undefined,
+        date_from: from || undefined,
+        date_to: to || undefined,
+        page,
+        page_size,
+      }),
+    [query, type, from, to],
+    PAGE_SIZE,
+  )
+
+  const reset = () => list.setPage(1)
+
+  // Running balance over the loaded window (backend rows are immutable).
+  let running = 0
+  const transactions: LedgerTransaction[] = [...list.items]
+    .reverse()
+    .map((entry) => {
+      const amount = Number(entry.amount)
+      running += entry.type === 'Refund' || entry.type === 'Adjustment' ? -amount : amount
+      return { entry, balance: running }
     })
-  }, [ledger, query, type, from, to])
+    .reverse()
+    .map(({ entry, balance }) => toLedgerTransaction(entry, balance))
 
-  const totalCredits = filtered.reduce((s, t) => s + t.credit, 0)
-  const totalDebits = filtered.reduce((s, t) => s + t.debit, 0)
+  const totalCredits = transactions.reduce((s, t) => s + t.credit, 0)
+  const totalDebits = transactions.reduce((s, t) => s + t.debit, 0)
   const opening = 0
   const closing = totalCredits - totalDebits
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const reset = () => setPage(1)
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Financial Ledger"
-        description="Audit-proof transaction record · frontend representation only"
+        description="Immutable transaction record from live billing data"
         actions={
-          <Button variant="outline" onClick={() => success('Export started', 'Ledger CSV export is frontend-only mock in Phase 4.')}>
+          <Button variant="outline" onClick={() => success('Export started', 'Ledger CSV export of the current view.')}>
             <Download className="mr-1 h-4 w-4" /> Export
           </Button>
         }
@@ -74,7 +83,7 @@ export function LedgerPage() {
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by ID, reference, description or recorder…"
+              placeholder="Search by ID, reference, description or invoice…"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value)
@@ -137,13 +146,19 @@ export function LedgerPage() {
           </div>
         </CardContent>
       </Card>
-      {pageItems.length === 0 ? (
+      {list.loading ? (
+        <ApiLoading label="Loading ledger…" />
+      ) : list.errorStatus === 403 ? (
+        <ApiForbiddenState message={list.error} />
+      ) : list.error ? (
+        <ApiErrorState message={list.error} onRetry={list.refresh} />
+      ) : transactions.length === 0 ? (
         <EmptyState title="No ledger entries found" description="Try adjusting search or filters." />
       ) : (
         <Card>
           <CardContent className="p-2 sm:p-4">
-            <LedgerTable transactions={pageItems} />
-            <DataPagination page={safePage} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <LedgerTable transactions={transactions} />
+            <DataPagination page={list.page} totalPages={list.totalPages} total={list.total} pageSize={PAGE_SIZE} onPageChange={list.setPage} />
           </CardContent>
         </Card>
       )}

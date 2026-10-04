@@ -172,6 +172,12 @@ SPECTACULAR_SETTINGS = {
         "LabPriorityEnum": "apps.laboratory.models.LabPriority",
         "LabResultStatusEnum": "apps.laboratory.models.LabResultStatus",
         "DispensingStatusEnum": "apps.pharmacy.models.DispensingStatus",
+        "InvoiceStatusEnum": "apps.billing.models.InvoiceStatus",
+        "ServiceTypeEnum": "apps.billing.models.ServiceType",
+        "BillingCategoryEnum": "apps.billing.models.BillingCategory",
+        "PaymentMethodEnum": "apps.billing.models.PaymentMethod",
+        "PaymentStatusEnum": "apps.billing.models.PaymentStatus",
+        "LedgerTypeEnum": "apps.billing.models.LedgerType",
     },
     "TAGS": [
         {"name": "auth", "description": "Registration, JWT login/refresh/logout, current user."},
@@ -183,5 +189,8 @@ SPECTACULAR_SETTINGS = {
         {"name": "prescriptions", "description": "Clinical prescriptions with medicine items."},
         {"name": "laboratory", "description": "Lab test catalog, orders, results and reports."},
         {"name": "pharmacy", "description": "Medicine catalog, inventory batches and dispensing."},
+        {"name": "invoices", "description": "Itemized invoices with server-derived totals."},
+        {"name": "payments", "description": "Ledger-grade payment records."},
+        {"name": "ledger", "description": "Immutable revenue ledger (read-only)."},
     ],
 }

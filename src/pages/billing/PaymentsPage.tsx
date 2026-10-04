@@ -1,12 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Search, Plus } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
+import { useAuth } from '@/context/AuthContext'
 import { PAYMENT_METHODS } from '@/data/billing'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { PaymentTable } from '@/components/billing/PaymentTable'
 import { RecordPaymentDialog } from '@/components/billing/RecordPaymentDialog'
+import { listPayments } from '@/lib/api/billing'
+import { toPayment } from '@/lib/api/adapters'
+import { canManageBilling, useApiList } from '@/lib/api/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -16,46 +20,44 @@ const PAGE_SIZE = 8
 const STATUSES = ['Completed', 'Pending', 'Failed', 'Refunded'] as const
 
 export function PaymentsPage() {
-  const { payments } = useHospitalStore()
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [method, setMethod] = useState('all')
   const [status, setStatus] = useState('all')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [page, setPage] = useState(1)
   const [open, setOpen] = useState(false)
+  const manageable = canManageBilling(user?.role ?? null)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return payments.filter((p) => {
-      if (method !== 'all' && p.paymentMethod !== method) return false
-      if (status !== 'all' && p.status !== status) return false
-      if (from && p.date < from) return false
-      if (to && p.date > to) return false
-      if (!q) return true
-      return (
-        p.id.toLowerCase().includes(q) ||
-        p.invoiceId.toLowerCase().includes(q) ||
-        p.patientName.toLowerCase().includes(q) ||
-        p.reference.toLowerCase().includes(q)
-      )
-    })
-  }, [payments, query, method, status, from, to])
+  const list = useApiList(
+    ({ page, page_size }) =>
+      listPayments({
+        search: query.trim() || undefined,
+        payment_method: method !== 'all' ? method : undefined,
+        status: status !== 'all' ? status : undefined,
+        date_from: from || undefined,
+        date_to: to || undefined,
+        page,
+        page_size,
+      }),
+    [query, method, status, from, to],
+    PAGE_SIZE,
+  )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const reset = () => setPage(1)
+  const reset = () => list.setPage(1)
+  const payments = list.items.map(toPayment)
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Payments"
-        description={`${filtered.length} transaction${filtered.length === 1 ? '' : 's'} · mock data`}
+        description={`${list.total} transaction${list.total === 1 ? '' : 's'}`}
         actions={
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" /> Record Payment
-          </Button>
+          manageable ? (
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" /> Record Payment
+            </Button>
+          ) : undefined
         }
       />
       <Card>
@@ -133,17 +135,23 @@ export function PaymentsPage() {
           </div>
         </CardContent>
       </Card>
-      {pageItems.length === 0 ? (
+      {list.loading ? (
+        <ApiLoading label="Loading payments…" />
+      ) : list.errorStatus === 403 ? (
+        <ApiForbiddenState message={list.error} />
+      ) : list.error ? (
+        <ApiErrorState message={list.error} onRetry={list.refresh} />
+      ) : payments.length === 0 ? (
         <EmptyState title="No transactions found" description="Try adjusting search or filters." />
       ) : (
         <Card>
           <CardContent className="p-2 sm:p-4">
-            <PaymentTable payments={pageItems} />
-            <DataPagination page={safePage} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <PaymentTable payments={payments} />
+            <DataPagination page={list.page} totalPages={list.totalPages} total={list.total} pageSize={PAGE_SIZE} onPageChange={list.setPage} />
           </CardContent>
         </Card>
       )}
-      <RecordPaymentDialog open={open} onOpenChange={setOpen} />
+      <RecordPaymentDialog open={open} onOpenChange={setOpen} onRecorded={list.refresh} />
     </div>
   )
 }
