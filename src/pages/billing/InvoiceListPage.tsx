@@ -1,15 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
+import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
-import type { Invoice } from '@/data/types'
 import { INVOICE_STATUSES, SERVICE_TYPES } from '@/data/billing'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { InvoiceTable } from '@/components/billing/InvoiceTable'
 import { RecordPaymentDialog } from '@/components/billing/RecordPaymentDialog'
+import { listInvoices } from '@/lib/api/billing'
+import { toInvoice } from '@/lib/api/adapters'
+import { canManageBilling, useApiList } from '@/lib/api/hooks'
+import type { Invoice } from '@/data/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -18,35 +22,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const PAGE_SIZE = 8
 
 export function InvoiceListPage() {
-  const { invoices } = useHospitalStore()
+  const { user } = useAuth()
   const { success } = useToast()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const [service, setService] = useState('all')
   const [date, setDate] = useState('')
-  const [page, setPage] = useState(1)
   const [payFor, setPayFor] = useState<Invoice | undefined>(undefined)
   const [payOpen, setPayOpen] = useState(false)
+  const manageable = canManageBilling(user?.role ?? null)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return invoices.filter((inv) => {
-      if (status !== 'all' && inv.status !== status) return false
-      if (service !== 'all' && inv.serviceType !== service) return false
-      if (date && inv.issueDate !== date) return false
-      if (!q) return true
-      return (
-        inv.id.toLowerCase().includes(q) ||
-        inv.patientName.toLowerCase().includes(q) ||
-        inv.patientId.toLowerCase().includes(q)
-      )
-    })
-  }, [invoices, query, status, service, date])
+  const list = useApiList(
+    ({ page, page_size }) =>
+      listInvoices({
+        search: query.trim() || undefined,
+        status: status !== 'all' ? status : undefined,
+        service_type: service !== 'all' ? service : undefined,
+        date: date || undefined,
+        page,
+        page_size,
+      }),
+    [query, status, service, date],
+    PAGE_SIZE,
+  )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const reset = () => setPage(1)
+  const reset = () => list.setPage(1)
+  const invoices = list.items.map(toInvoice)
 
   const handlePay = (inv: Invoice) => {
     setPayFor(inv)
@@ -57,13 +58,15 @@ export function InvoiceListPage() {
     <div className="space-y-4">
       <PageHeader
         title="Invoices"
-        description={`${filtered.length} invoice${filtered.length === 1 ? '' : 's'} · mock data`}
+        description={`${list.total} invoice${list.total === 1 ? '' : 's'}`}
         actions={
-          <Button asChild>
-            <Link to="/billing/invoices/new">
-              <Plus className="mr-1 h-4 w-4" /> New Invoice
-            </Link>
-          </Button>
+          manageable ? (
+            <Button asChild>
+              <Link to="/billing/invoices/new">
+                <Plus className="mr-1 h-4 w-4" /> New Invoice
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
       <Card>
@@ -133,35 +136,43 @@ export function InvoiceListPage() {
           </div>
         </CardContent>
       </Card>
-      {pageItems.length === 0 ? (
+      {list.loading ? (
+        <ApiLoading label="Loading invoices…" />
+      ) : list.errorStatus === 403 ? (
+        <ApiForbiddenState message={list.error} />
+      ) : list.error ? (
+        <ApiErrorState message={list.error} onRetry={list.refresh} />
+      ) : invoices.length === 0 ? (
         <EmptyState
           title="No invoices found"
           description="Try adjusting search or filters — or create a new invoice."
           action={
-            <Button asChild>
-              <Link to="/billing/invoices/new">
-                <Plus className="mr-1 h-4 w-4" /> New Invoice
-              </Link>
-            </Button>
+            manageable ? (
+              <Button asChild>
+                <Link to="/billing/invoices/new">
+                  <Plus className="mr-1 h-4 w-4" /> New Invoice
+                </Link>
+              </Button>
+            ) : undefined
           }
         />
       ) : (
         <Card>
           <CardContent className="p-2 sm:p-4">
             <InvoiceTable
-              invoices={pageItems}
+              invoices={invoices}
               onRecordPayment={handlePay}
               onPrint={(inv) => {
-                success('Print preview ready', `${inv.id} sent to print dialog (frontend-only).`)
+                success('Print preview ready', `${inv.invoiceNumber ?? inv.id} sent to print dialog.`)
                 window.setTimeout(() => window.print(), 300)
               }}
-              onDownload={(inv) => success('Download started', `${inv.id}.pdf will download (frontend-only mock).`)}
+              onDownload={(inv) => success('Download started', `${inv.invoiceNumber ?? inv.id}.pdf will download.`)}
             />
-            <DataPagination page={safePage} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <DataPagination page={list.page} totalPages={list.totalPages} total={list.total} pageSize={PAGE_SIZE} onPageChange={list.setPage} />
           </CardContent>
         </Card>
       )}
-      <RecordPaymentDialog open={payOpen} onOpenChange={setPayOpen} defaultInvoiceId={payFor?.id} />
+      <RecordPaymentDialog open={payOpen} onOpenChange={setPayOpen} defaultInvoiceId={payFor?.id} onRecorded={list.refresh} />
     </div>
   )
 }
