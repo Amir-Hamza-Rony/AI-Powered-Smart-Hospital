@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { RequireAuth } from '@/components/auth/RequireAuth'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { LoginPage } from '@/pages/LoginPage'
+import { RegisterPage } from '@/pages/RegisterPage'
 import { NotFoundPage, PlaceholderPage } from '@/pages/PlaceholderPage'
 import { PatientsPage } from '@/pages/patients/PatientsPage'
 import { PatientDetailPage } from '@/pages/patients/PatientDetailPage'
@@ -60,7 +63,17 @@ import { NotificationsPage } from '@/pages/notifications/NotificationsPage'
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
+      {/* Public auth routes (Phase 7) — rendered without the app shell */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      <Route
+        element={
+          <RequireAuth>
+            <AppLayout />
+          </RequireAuth>
+        }
+      >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
 

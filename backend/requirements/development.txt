@@ -1,0 +1,6 @@
+-r base.txt
+# Local development / verification helpers only (never required in production)
+# NOTE: pgserver (embedded PostgreSQL) removed — no matching distribution for
+# Python 3.14 on Windows (pip: "No matching distribution found for pgserver>=1.3").
+# It is not imported anywhere in the codebase; use a real PostgreSQL server via
+# DATABASE_URL (see .env.example) with the psycopg[binary] driver from base.txt.

@@ -1,6 +1,7 @@
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { RoleProvider } from '@/context/RoleContext'
+import { AuthProvider } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
 import { HospitalStoreProvider } from '@/store/HospitalStore'
 import { AutomationStoreProvider } from '@/store/AutomationStore'
@@ -12,6 +13,7 @@ function App() {
     <ThemeProvider>
       <RoleProvider>
         <ToastProvider>
+          <AuthProvider>
           <HospitalStoreProvider>
             <AutomationStoreProvider>
               <TooltipProvider>
@@ -21,6 +23,7 @@ function App() {
               </TooltipProvider>
             </AutomationStoreProvider>
           </HospitalStoreProvider>
+          </AuthProvider>
         </ToastProvider>
       </RoleProvider>
     </ThemeProvider>
