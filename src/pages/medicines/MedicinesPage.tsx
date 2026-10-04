@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Search } from 'lucide-react'
-import { MOCK_MEDICINES, MEDICINE_CATEGORIES, DOSAGE_FORMS } from '@/data/phase3'
+import { MEDICINE_CATEGORIES, DOSAGE_FORMS } from '@/data/phase3'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
+import { listMedicines } from '@/lib/api/pharmacy'
+import { toMedicine } from '@/lib/api/adapters'
+import { useApiList } from '@/lib/api/hooks'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,27 +21,33 @@ export function MedicinesPage() {
   const [category, setCategory] = useState('all')
   const [form, setForm] = useState('all')
   const [status, setStatus] = useState('all')
-  const [page, setPage] = useState(1)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return MOCK_MEDICINES.filter((m) => {
-      if (category !== 'all' && m.category !== category) return false
-      if (form !== 'all' && m.dosageForm !== form) return false
-      if (status !== 'all' && m.status !== status) return false
-      if (!q) return true
-      return m.name.toLowerCase().includes(q) || m.genericName.toLowerCase().includes(q) || m.manufacturer.toLowerCase().includes(q)
-    })
-  }, [query, category, form, status])
+  // Backend supports category + active/low-stock filters; dosage form is
+  // applied to the loaded page since the API has no form filter.
+  const list = useApiList(
+    ({ page, page_size }) =>
+      listMedicines({
+        search: query.trim() || undefined,
+        category: category !== 'all' ? category : undefined,
+        is_active: status === 'Discontinued' ? false : status === 'Available' || status === 'Low Stock' ? true : undefined,
+        low_stock: status === 'Low Stock' ? true : undefined,
+        page,
+        page_size,
+      }),
+    [query, category, status],
+    PAGE_SIZE,
+  )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const reset = () => setPage(1)
+  const reset = () => list.setPage(1)
+  const medicines = list.items.map(toMedicine).filter((m) => {
+    if (form !== 'all' && m.dosageForm !== form) return false
+    if (status === 'Available' && m.status !== 'Available') return false
+    return true
+  })
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Medicines" description={`${filtered.length} medicines in directory · fictional mock data`} />
+      <PageHeader title="Medicines" description={`${list.total} medicines in directory`} />
       <Card>
         <CardContent className="space-y-2 p-4">
           <div className="relative">
@@ -60,7 +70,13 @@ export function MedicinesPage() {
           </div>
         </CardContent>
       </Card>
-      {pageItems.length === 0 ? (
+      {list.loading ? (
+        <ApiLoading label="Loading medicines…" />
+      ) : list.errorStatus === 403 ? (
+        <ApiForbiddenState message={list.error} />
+      ) : list.error ? (
+        <ApiErrorState message={list.error} onRetry={list.refresh} />
+      ) : medicines.length === 0 ? (
         <EmptyState title="No medicines found" description="Try adjusting search or filters." />
       ) : (
         <Card>
@@ -80,9 +96,9 @@ export function MedicinesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pageItems.map((m) => (
+                  {medicines.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell className="font-medium">{m.name}<span className="block text-[11px] font-normal text-muted-foreground">{m.id}</span></TableCell>
+                      <TableCell className="font-medium">{m.name}<span className="block text-[11px] font-normal text-muted-foreground">{m.id.slice(0, 8)}</span></TableCell>
                       <TableCell>{m.genericName}</TableCell>
                       <TableCell className="whitespace-nowrap">{m.strength}</TableCell>
                       <TableCell><Badge variant="outline">{m.dosageForm}</Badge></TableCell>
@@ -95,7 +111,7 @@ export function MedicinesPage() {
                 </TableBody>
               </Table>
             </div>
-            <DataPagination page={safePage} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <DataPagination page={list.page} totalPages={list.totalPages} total={list.total} pageSize={PAGE_SIZE} onPageChange={list.setPage} />
           </CardContent>
         </Card>
       )}
