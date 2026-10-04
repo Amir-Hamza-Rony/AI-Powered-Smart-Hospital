@@ -138,6 +138,14 @@ export function canManageBilling(role: BackendRole | null): boolean {
   return isStaffRole(role)
 }
 
+export function canUseTriage(role: BackendRole | null): boolean {
+  return role === 'SUPER_ADMIN' || role === 'DOCTOR' || role === 'NURSE' || role === 'RECEPTIONIST'
+}
+
+export function canUseClinicalAI(role: BackendRole | null): boolean {
+  return role === 'SUPER_ADMIN' || role === 'DOCTOR'
+}
+
 export function isStaffRole(role: BackendRole | null): boolean {
   return role !== null && role !== 'PATIENT'
 }

@@ -28,6 +28,7 @@ class ApiRootView(APIView):
                 "laboratory": "/api/laboratory/",
                 "pharmacy": "/api/pharmacy/",
                 "billing": "/api/billing/",
+                "ai": "/api/ai/",
                 "automation": "/api/automation/",
                 "schema": "/api/schema/",
                 "docs": "/api/docs/",

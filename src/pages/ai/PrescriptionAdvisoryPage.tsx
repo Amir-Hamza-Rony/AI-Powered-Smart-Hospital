@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, PenLine, Plus, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
+import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
-import { analyzePrescriptionMock } from '@/data/ai'
 import type { AIAdvisorySeverity, AIPrescriptionAdvisory, AIProposedMedicine } from '@/data/types'
+import { prescriptionAdvisory, reviewInsight, type BackendAdvisory } from '@/lib/api/ai'
+import { getPatientDetail, listPatientsLookup, type LookupPatient } from '@/lib/api/lookups'
+import { canUseClinicalAI } from '@/lib/api/hooks'
+import { ApiError } from '@/lib/api/client'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -25,9 +28,11 @@ const EMPTY_MED: AIProposedMedicine = { medicine: '', dose: '', frequency: '', d
 const SEVERITY_ORDER: Record<AIAdvisorySeverity, number> = { 'High Attention': 0, Caution: 1, Informational: 2 }
 
 export function PrescriptionAdvisoryPage() {
-  const { patients } = useHospitalStore()
+  const { user } = useAuth()
   const { success, error } = useToast()
 
+  const [lookupPatients, setLookupPatients] = useState<LookupPatient[]>([])
+  const [patientAllergies, setPatientAllergies] = useState<string[]>([])
   const [patientId, setPatientId] = useState('')
   const [diagnosis, setDiagnosis] = useState('')
   const [currentMeds, setCurrentMeds] = useState('')
@@ -35,25 +40,36 @@ export function PrescriptionAdvisoryPage() {
 
   const [analyzing, setAnalyzing] = useState(false)
   const [advisory, setAdvisory] = useState<AIPrescriptionAdvisory | null>(null)
+  const [insightId, setInsightId] = useState<string | null>(null)
   const [signed, setSigned] = useState(false)
   const [signOpen, setSignOpen] = useState(false)
   const [signer, setSigner] = useState('')
+  const apiResult = useRef<BackendAdvisory | null>(null)
+  const apiFailed = useRef(false)
 
-  const patient = patients.find((p) => p.id === patientId)
+  useEffect(() => {
+    listPatientsLookup()
+      .then((page) => setLookupPatients(page.results))
+      .catch(() => setLookupPatients([]))
+  }, [])
 
   const pickPatient = (id: string) => {
     setPatientId(id)
-    const p = patients.find((x) => x.id === id)
-    setCurrentMeds(p ? p.currentMedications.join('\n') : '')
     setAdvisory(null)
     setSigned(false)
+    setInsightId(null)
+    getPatientDetail(id)
+      .then((p) => {
+        setPatientAllergies(p.allergies ?? [])
+      })
+      .catch(() => setPatientAllergies([]))
   }
 
   const updateMed = (idx: number, patch: Partial<AIProposedMedicine>) =>
     setProposed((prev) => prev.map((m, i) => (i === idx ? { ...m, ...patch } : m)))
 
   const runAnalysis = () => {
-    if (!patient) {
+    if (!patientId) {
       error('Select a patient', 'A patient is required before running the advisory.')
       return
     }
@@ -62,23 +78,64 @@ export function PrescriptionAdvisoryPage() {
       return
     }
     setSigned(false)
+    setInsightId(null)
     setAnalyzing(true)
+    apiResult.current = null
+    apiFailed.current = false
+    prescriptionAdvisory({
+      patient: patientId,
+      diagnosis,
+      current_meds: currentMeds.split('\n').map((s) => s.trim()).filter(Boolean),
+      proposed: proposed.map((m) => ({
+        medicine: m.medicine,
+        dose: m.dose,
+        frequency: m.frequency,
+        duration: m.duration,
+        route: m.route,
+      })),
+    })
+      .then((result) => {
+        apiResult.current = result
+      })
+      .catch(() => {
+        apiFailed.current = true
+      })
   }
 
   const finishAnalysis = () => {
-    if (!patient) {
+    const result = apiResult.current
+    if (apiFailed.current || !result) {
+      error('Analysis failed', 'The advisory service could not complete this review.')
       setAnalyzing(false)
       return
     }
-    setAdvisory(
-      analyzePrescriptionMock(
-        patient,
-        diagnosis,
-        currentMeds.split('\n').map((s) => s.trim()).filter(Boolean),
-        proposed,
-      ),
-    )
+    setAdvisory({
+      findings: result.findings,
+      overallSeverity: result.overallSeverity,
+      summary: result.summary,
+      generatedAt: new Date().toISOString(),
+    })
+    setInsightId(result.insight)
     setAnalyzing(false)
+  }
+
+  const confirmSignoff = async () => {
+    if (!signer.trim()) {
+      error('Physician name required', 'Enter the signing physician’s name for the record.')
+      return
+    }
+    if (!canUseClinicalAI(user?.role ?? null) || !insightId) {
+      error('Not permitted', 'Sign-off requires a doctor or admin account with a generated advisory.')
+      return
+    }
+    try {
+      await reviewInsight(insightId, `Signed off by ${signer.trim()}.`)
+      setSigned(true)
+      setSignOpen(false)
+      success('Prescription signed off', `${signer.trim()} approved — review recorded.`)
+    } catch (err) {
+      error('Sign-off failed', err instanceof ApiError ? err.message : 'Request failed.')
+    }
   }
 
   const sorted = advisory ? [...advisory.findings].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) : []
@@ -87,7 +144,7 @@ export function PrescriptionAdvisoryPage() {
     <div className="space-y-4">
       <PageHeader
         title="AI Prescription Advisory"
-        description="Mock decision-support review · physician sign-off required, frontend only"
+        description="Decision-support review · physician sign-off required"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link to="/ai">
@@ -110,20 +167,17 @@ export function PrescriptionAdvisoryPage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select patient" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {patients.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.firstName} {p.lastName} ({p.id})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {patient && (
-                  <p className="text-xs text-muted-foreground">
-                    Allergies: {patient.allergies.length > 0 ? patient.allergies.join(', ') : 'none recorded'} · Chronic:{' '}
-                    {patient.chronicConditions.length > 0 ? patient.chronicConditions.join(', ') : 'none'}
-                  </p>
-                )}
+                <SelectContent>
+                  {lookupPatients.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} ({p.phone})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Allergies: {patientAllergies.length > 0 ? patientAllergies.join(', ') : 'none recorded'}
+              </p>
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Diagnosis / clinical indication</Label>
@@ -205,7 +259,7 @@ export function PrescriptionAdvisoryPage() {
           )}
 
           {!analyzing && !advisory && (
-            <EmptyState title="No advisory yet" description="Fill in the proposed medicines and run the mock analysis to see decision-support findings." />
+            <EmptyState title="No advisory yet" description="Fill in the proposed medicines and run the analysis to see decision-support findings." />
           )}
 
           {!analyzing && advisory && (
@@ -247,7 +301,7 @@ export function PrescriptionAdvisoryPage() {
                 </div>
                 {signed && (
                   <p className="text-xs text-muted-foreground">
-                    Signed off by {signer} (mock UI flow — recorded to AI activity in this demo).
+                    Signed off by {signer} — recorded in the AI review trail.
                   </p>
                 )}
               </CardContent>
@@ -273,9 +327,9 @@ export function PrescriptionAdvisoryPage() {
       <Dialog open={signOpen} onOpenChange={setSignOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Physician sign-off (mock)</DialogTitle>
+            <DialogTitle>Physician sign-off</DialogTitle>
             <DialogDescription>
-              Confirm that a qualified physician has reviewed this advisory and approves the prescription. UI flow only — no real approval is issued.
+              Confirm that a qualified physician has reviewed this advisory and approves the prescription. The sign-off is recorded in the AI review trail.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
@@ -287,15 +341,7 @@ export function PrescriptionAdvisoryPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                if (!signer.trim()) {
-                  error('Physician name required', 'Enter the signing physician\u2019s name for the mock record.')
-                  return
-                }
-                setSigned(true)
-                setSignOpen(false)
-                success('Prescription signed off', `${signer.trim()} approved (mock UI flow).`)
-              }}
+              onClick={confirmSignoff}
             >
               Confirm Sign-off
             </Button>

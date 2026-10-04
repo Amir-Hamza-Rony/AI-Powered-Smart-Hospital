@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Search } from 'lucide-react'
-import { MOCK_AI_ACTIVITY } from '@/data/ai'
-import type { AIActivityStatus, AIModule } from '@/data/types'
+import type { AIActivityStatus } from '@/data/types'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { AIActivityStatusBadge } from '@/components/ai/AIBadges'
+import { listAIInsights } from '@/lib/api/ai'
+import { useApiList } from '@/lib/api/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,40 +16,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 const PAGE_SIZE = 8
-const MODULES: AIModule[] = ['Symptom Checker', 'Clinical Assistant', 'Prescription Advisory', 'No-Show Prediction', 'Health Analytics']
+const MODULES = ['Symptom Checker', 'Clinical Assistant', 'Prescription Advisory', 'No-Show Prediction', 'Health Analytics']
 const STATUSES: AIActivityStatus[] = ['Completed', 'Reviewed', 'Pending Review']
+
+function toActivityStatus(status: string): AIActivityStatus {
+  return status === 'Reviewed' ? 'Reviewed' : status === 'Completed' ? 'Completed' : 'Pending Review'
+}
 
 export function AIActivityPage() {
   const [query, setQuery] = useState('')
   const [module, setModule] = useState('all')
   const [status, setStatus] = useState('all')
-  const [page, setPage] = useState(1)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return MOCK_AI_ACTIVITY.filter((a) => {
-      if (module !== 'all' && a.module !== module) return false
-      if (status !== 'all' && a.status !== status) return false
-      if (!q) return true
-      return (
-        a.id.toLowerCase().includes(q) ||
-        a.user.toLowerCase().includes(q) ||
-        a.patient.toLowerCase().includes(q) ||
-        a.action.toLowerCase().includes(q)
-      )
-    })
-  }, [query, module, status])
+  const list = useApiList(
+    ({ page, page_size }) =>
+      listAIInsights({
+        module: module !== 'all' ? module : undefined,
+        review_status: status !== 'all' ? status : undefined,
+        search: query.trim() || undefined,
+        page,
+        page_size,
+      }),
+    [query, module, status],
+    PAGE_SIZE,
+  )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const reset = () => setPage(1)
+  const reset = () => list.setPage(1)
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="AI Activity"
-        description={`${filtered.length} AI-related event${filtered.length === 1 ? '' : 's'} · mock audit trail`}
+        description={`${list.total} AI-related event${list.total === 1 ? '' : 's'} · persisted review trail`}
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link to="/ai">
@@ -62,7 +62,7 @@ export function AIActivityPage() {
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by activity ID, user, patient or action…"
+              placeholder="Search by insight, patient or session…"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value)
@@ -115,8 +115,14 @@ export function AIActivityPage() {
         </CardContent>
       </Card>
 
-      {pageItems.length === 0 ? (
-        <EmptyState title="No activity found" description="Try adjusting the search or filters." />
+      {list.loading ? (
+        <ApiLoading label="Loading AI activity…" />
+      ) : list.errorStatus === 403 ? (
+        <ApiForbiddenState message={list.error} />
+      ) : list.error ? (
+        <ApiErrorState message={list.error} onRetry={list.refresh} />
+      ) : list.items.length === 0 ? (
+        <EmptyState title="No activity found" description="Run an AI assessment to populate this trail." />
       ) : (
         <Card>
           <CardContent className="p-2 sm:p-4">
@@ -124,35 +130,31 @@ export function AIActivityPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Activity ID</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Role</TableHead>
+                    <TableHead>Insight</TableHead>
                     <TableHead>AI Module</TableHead>
                     <TableHead>Patient</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Requested By</TableHead>
+                    <TableHead>Created</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pageItems.map((a) => (
+                  {list.items.map((a) => (
                     <TableRow key={a.id}>
-                      <TableCell className="whitespace-nowrap font-medium">{a.id}</TableCell>
-                      <TableCell className="whitespace-nowrap">{a.user}</TableCell>
-                      <TableCell className="whitespace-nowrap">{a.role}</TableCell>
+                      <TableCell className="min-w-[200px] font-medium">{a.title}</TableCell>
                       <TableCell className="whitespace-nowrap">{a.module}</TableCell>
-                      <TableCell className="whitespace-nowrap">{a.patient}</TableCell>
-                      <TableCell className="min-w-[200px]">{a.action}</TableCell>
-                      <TableCell className="whitespace-nowrap">{a.timestamp}</TableCell>
+                      <TableCell className="whitespace-nowrap">{a.patient_name ?? '—'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{a.requested_by_email ?? '—'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{a.created_at.slice(0, 16).replace('T', ' ')}</TableCell>
                       <TableCell>
-                        <AIActivityStatusBadge status={a.status} />
+                        <AIActivityStatusBadge status={toActivityStatus(a.review_status)} />
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
-            <DataPagination page={safePage} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <DataPagination page={list.page} totalPages={list.totalPages} total={list.total} pageSize={PAGE_SIZE} onPageChange={list.setPage} />
           </CardContent>
         </Card>
       )}
