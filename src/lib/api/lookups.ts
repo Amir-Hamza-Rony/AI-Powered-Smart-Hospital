@@ -39,3 +39,12 @@ export function listDoctorsLookup(params: { search?: string; status?: string; pa
 export function listActiveDoctorsLookup() {
   return listDoctorsLookup({ status: 'Active' })
 }
+
+export interface LookupPatientDetail extends LookupPatient {
+  allergies: string[]
+  chronic_conditions: string[]
+}
+
+export function getPatientDetail(id: string) {
+  return apiFetch<LookupPatientDetail>(`/patients/${id}/`)
+}

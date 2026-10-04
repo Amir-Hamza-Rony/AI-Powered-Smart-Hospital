@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, BellRing, CalendarClock, Eye, Search, UserX } from 'lucide-react'
 import { useToast } from '@/context/ToastContext'
-import { MOCK_NOSHOW_PREDICTIONS } from '@/data/ai'
-import type { AINoShowPrediction, AINoShowRisk, AIReminderPriority } from '@/data/types'
+import type { AINoShowPrediction, AIReminderPriority } from '@/data/types'
+import { listNoShowPredictions } from '@/lib/api/ai'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
@@ -28,14 +29,46 @@ export function NoShowPredictionPage() {
   const [page, setPage] = useState(1)
   const [detail, setDetail] = useState<AINoShowPrediction | null>(null)
   const [priorities, setPriorities] = useState<Record<string, AIReminderPriority>>({})
+  const [rows, setRows] = useState<AINoShowPrediction[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [errorStatus, setErrorStatus] = useState<number | null>(null)
+  const [nonce, setNonce] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    listNoShowPredictions({
+      risk: risk !== 'all' ? risk : undefined,
+      search: query.trim() || undefined,
+    })
+      .then((predictions) => {
+        if (!active) return
+        setRows(predictions)
+        setLoadError(null)
+        setErrorStatus(null)
+      })
+      .catch((err: unknown) => {
+        if (!active) return
+        setLoadError(err instanceof Error ? err.message : 'Failed to load predictions.')
+        setErrorStatus((err as { status?: number })?.status ?? null)
+        setRows([])
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [risk, query, nonce])
 
   const predictions = useMemo(
     () =>
-      MOCK_NOSHOW_PREDICTIONS.map((p) => ({
+      rows.map((p) => ({
         ...p,
         reminderPriority: priorities[p.appointmentId] ?? p.reminderPriority,
       })),
-    [priorities],
+    [rows, priorities],
   )
 
   const total = predictions.length
@@ -43,18 +76,7 @@ export function NoShowPredictionPage() {
   const medium = predictions.filter((p) => p.riskLevel === 'Medium').length
   const low = predictions.filter((p) => p.riskLevel === 'Low').length
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return predictions.filter((p) => {
-      if (risk !== 'all' && p.riskLevel !== (risk as AINoShowRisk)) return false
-      if (!q) return true
-      return (
-        p.appointmentId.toLowerCase().includes(q) ||
-        p.patientName.toLowerCase().includes(q) ||
-        p.doctorName.toLowerCase().includes(q)
-      )
-    })
-  }, [predictions, query, risk])
+  const filtered = useMemo(() => predictions, [predictions])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -64,7 +86,7 @@ export function NoShowPredictionPage() {
     <div className="space-y-4">
       <PageHeader
         title="AI No-Show Prediction"
-        description="Mock appointment risk analysis · simulated scores for frontend demo"
+        description="Appointment risk analysis from live attendance patterns"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link to="/ai">
@@ -75,7 +97,7 @@ export function NoShowPredictionPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={CalendarClock} label="Upcoming Appointments" value={total} hint="In mock prediction set" />
+        <StatCard icon={CalendarClock} label="Upcoming Appointments" value={total} hint="Scored from live data" />
         <StatCard icon={UserX} label="High Risk" value={high} hint="Remind first" />
         <StatCard icon={BellRing} label="Medium Risk" value={medium} hint="Standard reminders" />
         <StatCard icon={Eye} label="Low Risk" value={low} hint="Likely to attend" />
@@ -116,7 +138,13 @@ export function NoShowPredictionPage() {
         </CardContent>
       </Card>
 
-      {pageItems.length === 0 ? (
+      {loading ? (
+        <ApiLoading label="Loading predictions…" />
+      ) : errorStatus === 403 ? (
+        <ApiForbiddenState message={loadError} />
+      ) : loadError ? (
+        <ApiErrorState message={loadError} onRetry={() => setNonce((n) => n + 1)} />
+      ) : pageItems.length === 0 ? (
         <EmptyState title="No predictions found" description="Try adjusting the search or risk filter." />
       ) : (
         <Card>
@@ -187,12 +215,12 @@ export function NoShowPredictionPage() {
               </div>
               <div className="flex items-center gap-2">
                 <AIRiskBadge level={detail.riskLevel} />
-                <span className="text-xs text-muted-foreground">Mock score {detail.riskScore}/100</span>
+                <span className="text-xs text-muted-foreground">Score {detail.riskScore}/100</span>
               </div>
               <AIConfidenceIndicator value={detail.riskScore} />
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Simulated risk factors</CardTitle>
+                  <CardTitle className="text-sm">Risk factors</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
@@ -208,7 +236,7 @@ export function NoShowPredictionPage() {
                   value={priorities[detail.appointmentId] ?? detail.reminderPriority}
                   onValueChange={(v) => {
                     setPriorities((prev) => ({ ...prev, [detail.appointmentId]: v as AIReminderPriority }))
-                    success('Priority updated', `${detail.appointmentId} → ${v} reminders (mock).`)
+                    success('Priority updated', `${detail.appointmentId} reminder preference saved locally.`)
                   }}
                 >
                   <SelectTrigger>
@@ -232,7 +260,7 @@ export function NoShowPredictionPage() {
             <Button
               variant="outline"
               onClick={() => {
-                if (detail) success('Reminder queued', `Mock reminder for ${detail.patientName} (${detail.appointmentId}).`)
+                if (detail) success('Reminder queued', `Reminder noted for ${detail.patientName} — sending is manual in this phase.`)
               }}
             >
               <BellRing className="mr-1 h-4 w-4" /> Send Reminder

@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Bot, Copy, RotateCcw, Send, Stethoscope } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
 import { useToast } from '@/context/ToastContext'
-import { AI_SUGGESTED_QUESTIONS, answerClinicalQuestionMock, getClinicalSummaryMock } from '@/data/ai'
+import { AI_SUGGESTED_QUESTIONS } from '@/data/ai'
 import type { AIClinicalMessage } from '@/data/types'
+import { clinicalAsk, clinicalSummary } from '@/lib/api/ai'
+import { getPatientDetail, listPatientsLookup, type LookupPatient, type LookupPatientDetail } from '@/lib/api/lookups'
+import { canUseClinicalAI } from '@/lib/api/hooks'
+import { useAuth } from '@/context/AuthContext'
+import { ApiError } from '@/lib/api/client'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { AIStatusBadge } from '@/components/ai/AIBadges'
@@ -22,63 +26,72 @@ function timestamp(): string {
 }
 
 export function ClinicalAssistantPage() {
-  const { patients } = useHospitalStore()
-  const { success } = useToast()
+  const { user } = useAuth()
+  const { success, error } = useToast()
+  const [lookupPatients, setLookupPatients] = useState<LookupPatient[]>([])
   const [patientId, setPatientId] = useState('')
+  const [detail, setDetail] = useState<LookupPatientDetail | null>(null)
+  const [recordSummary, setRecordSummary] = useState<string | null>(null)
   const [messages, setMessages] = useState<AIClinicalMessage[]>([])
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<number | null>(null)
   const msgSeq = useRef(0)
+  const authorized = canUseClinicalAI(user?.role ?? null)
   const nextMsgId = (suffix: string) => {
     msgSeq.current += 1
     return `m-${msgSeq.current}-${suffix}`
   }
 
-  const patient = patients.find((p) => p.id === patientId)
+  useEffect(() => {
+    listPatientsLookup()
+      .then((page) => setLookupPatients(page.results))
+      .catch(() => setLookupPatients([]))
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages, thinking])
 
-  useEffect(
-    () => () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current)
-    },
-    [],
-  )
+  const selectPatient = (id: string) => {
+    setPatientId(id)
+    setMessages([])
+    setDraft('')
+    setRecordSummary(null)
+    setDetail(null)
+    if (!id) return
+    getPatientDetail(id)
+      .then(setDetail)
+      .catch(() => setDetail(null))
+  }
 
-  const send = (text: string) => {
-    const q = text.trim()
-    if (!q || !patient || thinking) return
+  const askBackend = async (question: string, asSummary: boolean) => {
+    const q = question.trim()
+    if (!q || !patientId || thinking) return
+    if (!authorized) {
+      error('Not permitted', 'Clinical assistant requires a doctor or admin account.')
+      return
+    }
     const now = timestamp()
-    const doctorMsg: AIClinicalMessage = { id: nextMsgId('d'), role: 'doctor', text: q, timestamp: now }
-    setMessages((prev) => [...prev, doctorMsg])
+    setMessages((prev) => [...prev, { id: nextMsgId('d'), role: 'doctor', text: q, timestamp: now }])
     setDraft('')
     setThinking(true)
-    timerRef.current = window.setTimeout(() => {
-      const reply: AIClinicalMessage = {
-        id: nextMsgId('a'),
-        role: 'ai',
-        text: answerClinicalQuestionMock(patient, q),
-        timestamp: timestamp(),
-      }
-      setMessages((prev) => [...prev, reply])
+    try {
+      const reply = asSummary
+        ? await clinicalSummary(patientId)
+        : await clinicalAsk(patientId, q)
+      const text = (reply.summary ?? reply.answer ?? '').trim()
+      setMessages((prev) => [...prev, { id: nextMsgId('a'), role: 'ai', text, timestamp: timestamp() }])
+      if (asSummary) setRecordSummary(text)
+    } catch (err) {
+      error('Assistant failed', err instanceof ApiError ? err.message : 'Request failed.')
+    } finally {
       setThinking(false)
-    }, 1100)
+    }
   }
 
-  const summarize = () => {
-    if (!patient || thinking) return
-    const now = timestamp()
-    setMessages((prev) => [...prev, { id: nextMsgId('d'), role: 'doctor', text: 'Summarize this patient for my review.', timestamp: now }])
-    setThinking(true)
-    timerRef.current = window.setTimeout(() => {
-      setMessages((prev) => [...prev, { id: nextMsgId('a'), role: 'ai', text: getClinicalSummaryMock(patient), timestamp: timestamp() }])
-      setThinking(false)
-    }, 1100)
-  }
+  const send = (text: string) => askBackend(text, false)
+  const summarize = () => askBackend('Summarize this patient for my review.', true)
 
   const copy = async (text: string) => {
     try {
@@ -89,13 +102,11 @@ export function ClinicalAssistantPage() {
     }
   }
 
-  const abnormalLabs = patient?.labReports.filter((l) => l.status === 'Abnormal') ?? []
-
   return (
     <div className="space-y-4">
       <PageHeader
         title="AI Clinical Assistant"
-        description="Mock doctor copilot over the selected patient record · frontend only"
+        description="Record-grounded doctor copilot · decision support only, physician review required"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link to="/ai">
@@ -111,32 +122,28 @@ export function ClinicalAssistantPage() {
             <Label>Patient *</Label>
             <Select
               value={patientId}
-              onValueChange={(id) => {
-                setPatientId(id)
-                setMessages([])
-                setDraft('')
-              }}
+              onValueChange={selectPatient}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select patient to assist with" />
               </SelectTrigger>
               <SelectContent>
-                {patients.map((p) => (
+                {lookupPatients.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} ({p.id})
+                    {p.name} ({p.phone})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" onClick={summarize} disabled={!patient || thinking}>
+          <Button variant="outline" onClick={summarize} disabled={!patientId || thinking}>
             <Stethoscope className="mr-1 h-4 w-4" /> Auto-summarize
           </Button>
         </CardContent>
       </Card>
 
-      {!patient ? (
-        <EmptyState title="No patient selected" description="Select a patient above to see their summary and start asking the mock assistant." />
+      {!patientId ? (
+        <EmptyState title="No patient selected" description="Select a patient above to see their summary and start asking the assistant." />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
           {/* Patient summary */}
@@ -147,58 +154,45 @@ export function ClinicalAssistantPage() {
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p className="font-semibold">
-                  {patient.firstName} {patient.lastName} <span className="font-normal text-muted-foreground">({patient.id})</span>
+                  {detail?.name ?? 'Loading…'}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {patient.age}y · {patient.gender} · {patient.bloodGroup} · {patient.phone}
-                </p>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Chronic conditions</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {patient.chronicConditions.length === 0 && <span className="text-xs text-muted-foreground">None recorded</span>}
-                    {patient.chronicConditions.map((c) => (
-                      <Badge key={c} variant="secondary">{c}</Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Allergies</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {patient.allergies.length === 0 && <span className="text-xs text-muted-foreground">None recorded</span>}
-                    {patient.allergies.map((a) => (
-                      <Badge key={a} variant="outline">{a}</Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent visits</p>
-                  <ul className="mt-1 space-y-1 text-xs">
-                    {patient.history.slice(0, 3).map((v) => (
-                      <li key={v.id}>• {v.date} — {v.doctor}: {v.diagnosis}</li>
-                    ))}
-                    {patient.history.length === 0 && <li className="text-muted-foreground">No visits recorded</li>}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Active medications</p>
-                  <ul className="mt-1 space-y-1 text-xs">
-                    {patient.currentMedications.slice(0, 4).map((m) => (
-                      <li key={m}>• {m}</li>
-                    ))}
-                    {patient.currentMedications.length === 0 && <li className="text-muted-foreground">None recorded</li>}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abnormal labs ({abnormalLabs.length})</p>
-                  <ul className="mt-1 space-y-1 text-xs">
-                    {abnormalLabs.slice(0, 3).map((l) => (
-                      <li key={l.id}>• {l.test} ({l.date}): {l.result}</li>
-                    ))}
-                    {abnormalLabs.length === 0 && <li className="text-muted-foreground">None on file</li>}
-                  </ul>
-                </div>
+                {detail && (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {detail.date_of_birth} · {detail.gender} · {detail.blood_group} · {detail.phone}
+                    </p>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Chronic conditions</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {(detail.chronic_conditions ?? []).length === 0 && <span className="text-xs text-muted-foreground">None recorded</span>}
+                        {(detail.chronic_conditions ?? []).map((c) => (
+                          <Badge key={c} variant="secondary">{c}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Allergies</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {(detail.allergies ?? []).length === 0 && <span className="text-xs text-muted-foreground">None recorded</span>}
+                        {(detail.allergies ?? []).map((a) => (
+                          <Badge key={a} variant="outline">{a}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
+            {recordSummary && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Record Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="whitespace-pre-line text-xs text-muted-foreground">{recordSummary}</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Chat */}
@@ -225,7 +219,7 @@ export function ClinicalAssistantPage() {
               <div className="max-h-[380px] min-h-[220px] flex-1 space-y-3 overflow-y-auto rounded-lg border border-border bg-muted/30 p-3" aria-live="polite">
                 {messages.length === 0 && !thinking && (
                   <p className="py-8 text-center text-sm text-muted-foreground">
-                    Ask about {patient.firstName} {patient.lastName} — or tap a suggested question above.
+                    Ask about {detail?.name ?? 'the patient'} — or tap a suggested question above.
                   </p>
                 )}
                 {messages.map((m) => (
@@ -238,7 +232,7 @@ export function ClinicalAssistantPage() {
                     >
                       {m.role === 'ai' && (
                         <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-primary">
-                          <Bot className="h-3 w-3" aria-hidden /> Mock AI
+                          <Bot className="h-3 w-3" aria-hidden /> AI · decision support
                         </p>
                       )}
                       <p className="whitespace-pre-line">{m.text}</p>
@@ -261,7 +255,7 @@ export function ClinicalAssistantPage() {
                 {thinking && (
                   <div className="flex justify-start">
                     <div className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-                      <span className="animate-pulse">Mock AI is reviewing the record…</span>
+                      <span className="animate-pulse">AI is reviewing the live record…</span>
                     </div>
                   </div>
                 )}
