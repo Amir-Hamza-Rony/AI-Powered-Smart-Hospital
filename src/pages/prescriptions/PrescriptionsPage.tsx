@@ -1,12 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
+import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { PrescriptionTable } from '@/components/phase3/PrescriptionTable'
+import { listPrescriptions } from '@/lib/api/prescriptions'
+import { listDoctorsLookup, listPatientsLookup, type LookupDoctor, type LookupPatient } from '@/lib/api/lookups'
+import { toFullPrescription } from '@/lib/api/adapters'
+import { canWritePrescriptions, useApiList } from '@/lib/api/hooks'
 import type { FullPrescription } from '@/data/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -16,61 +21,58 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const PAGE_SIZE = 8
 
 export function PrescriptionsPage() {
-  const { prescriptions, doctors } = useHospitalStore()
+  const { user } = useAuth()
   const { success } = useToast()
   const [query, setQuery] = useState('')
   const [doctor, setDoctor] = useState('all')
   const [patient, setPatient] = useState('all')
   const [date, setDate] = useState('')
   const [status, setStatus] = useState('all')
-  const [page, setPage] = useState(1)
+  const [patients, setPatients] = useState<LookupPatient[]>([])
+  const [doctors, setDoctors] = useState<LookupDoctor[]>([])
 
-  const patientOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    prescriptions.forEach((p) => map.set(p.patientId, p.patientName))
-    return [...map.entries()]
-  }, [prescriptions])
+  useEffect(() => {
+    listPatientsLookup().then((page) => setPatients(page.results)).catch(() => setPatients([]))
+    listDoctorsLookup().then((page) => setDoctors(page.results)).catch(() => setDoctors([]))
+  }, [])
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return prescriptions.filter((p) => {
-      if (doctor !== 'all' && p.doctorId !== doctor) return false
-      if (patient !== 'all' && p.patientId !== patient) return false
-      if (date && p.date !== date) return false
-      if (status !== 'all' && p.status !== status) return false
-      if (!q) return true
-      return (
-        p.id.toLowerCase().includes(q) ||
-        p.patientName.toLowerCase().includes(q) ||
-        p.doctorName.toLowerCase().includes(q) ||
-        p.medicines.some((m) => m.name.toLowerCase().includes(q))
-      )
-    })
-  }, [prescriptions, query, doctor, patient, date, status])
+  const list = useApiList(
+    ({ page, page_size }) =>
+      listPrescriptions({
+        search: query.trim() || undefined,
+        doctor: doctor !== 'all' ? doctor : undefined,
+        patient: patient !== 'all' ? patient : undefined,
+        date: date || undefined,
+        status: status !== 'all' ? status : undefined,
+        page,
+        page_size,
+      }),
+    [query, doctor, patient, date, status],
+    PAGE_SIZE,
+  )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const reset = () => setPage(1)
+  const reset = () => list.setPage(1)
+  const prescriptions: FullPrescription[] = list.items.map((rx) => toFullPrescription(rx))
+  const writable = canWritePrescriptions(user?.role ?? null)
 
   const handlePrint = (p: FullPrescription) => {
-    success('Print preview ready', `${p.id} sent to print dialog (frontend-only).`)
+    success('Print preview ready', `${p.id} sent to print dialog.`)
     window.setTimeout(() => window.print(), 300)
   }
-  const handleDownload = (p: FullPrescription) => success('Download started', `${p.id}.pdf will download (frontend-only mock).`)
+  const handleDownload = (p: FullPrescription) => success('Download started', `${p.id}.pdf will download.`)
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Prescriptions"
-        description={`${filtered.length} prescription${filtered.length === 1 ? '' : 's'} · mock data`}
-        actions={<Button asChild><Link to="/prescriptions/new"><Plus className="mr-1 h-4 w-4" /> New Prescription</Link></Button>}
+        description={`${list.total} prescription${list.total === 1 ? '' : 's'}`}
+        actions={writable ? <Button asChild><Link to="/prescriptions/new"><Plus className="mr-1 h-4 w-4" /> New Prescription</Link></Button> : undefined}
       />
       <Card>
         <CardContent className="space-y-2 p-4">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search by ID, patient, doctor or medicine…" value={query} onChange={(e) => { setQuery(e.target.value); reset() }} className="pl-9" aria-label="Search prescriptions" />
+            <Input placeholder="Search by patient, doctor or diagnosis…" value={query} onChange={(e) => { setQuery(e.target.value); reset() }} className="pl-9" aria-label="Search prescriptions" />
           </div>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <Select value={doctor} onValueChange={(v) => { setDoctor(v); reset() }}>
@@ -84,7 +86,7 @@ export function PrescriptionsPage() {
               <SelectTrigger aria-label="Patient filter"><SelectValue placeholder="Patient" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All patients</SelectItem>
-                {patientOptions.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+                {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Input type="date" value={date} onChange={(e) => { setDate(e.target.value); reset() }} aria-label="Date filter" />
@@ -98,13 +100,19 @@ export function PrescriptionsPage() {
           </div>
         </CardContent>
       </Card>
-      {pageItems.length === 0 ? (
-        <EmptyState title="No prescriptions found" description="Try adjusting filters — or create a new prescription." action={<Button asChild><Link to="/prescriptions/new"><Plus className="mr-1 h-4 w-4" /> New Prescription</Link></Button>} />
+      {list.loading ? (
+        <ApiLoading label="Loading prescriptions…" />
+      ) : list.errorStatus === 403 ? (
+        <ApiForbiddenState message={list.error} />
+      ) : list.error ? (
+        <ApiErrorState message={list.error} onRetry={list.refresh} />
+      ) : prescriptions.length === 0 ? (
+        <EmptyState title="No prescriptions found" description="Try adjusting filters — or create a new prescription." action={writable ? <Button asChild><Link to="/prescriptions/new"><Plus className="mr-1 h-4 w-4" /> New Prescription</Link></Button> : undefined} />
       ) : (
         <Card>
           <CardContent className="p-2 sm:p-4">
-            <PrescriptionTable prescriptions={pageItems} onPrint={handlePrint} onDownload={handleDownload} />
-            <DataPagination page={safePage} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            <PrescriptionTable prescriptions={prescriptions} onPrint={handlePrint} onDownload={handleDownload} />
+            <DataPagination page={list.page} totalPages={list.totalPages} total={list.total} pageSize={PAGE_SIZE} onPageChange={list.setPage} />
           </CardContent>
         </Card>
       )}

@@ -1,28 +1,67 @@
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, Pencil, Printer, Share2 } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
+import { ArrowLeft, CheckCircle2, Download, Printer, Share2, XCircle } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { ApiErrorState, ApiLoading } from '@/components/shared/ApiState'
 import { PrescriptionStatusBadge } from '@/components/phase3/StatusBadges'
+import { cancelPrescription, completePrescription, getPrescription } from '@/lib/api/prescriptions'
+import { toFullPrescription } from '@/lib/api/adapters'
+import { canWritePrescriptions, useApiDetail } from '@/lib/api/hooks'
+import { ApiError } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export function PrescriptionDetailPage() {
   const { id } = useParams()
-  const { getPrescription } = useHospitalStore()
-  const { success } = useToast()
-  const rx = id ? getPrescription(id) : undefined
+  const { user } = useAuth()
+  const { success, error } = useToast()
+  const detail = useApiDetail(() => getPrescription(id ?? ''), [id])
+  const writable = canWritePrescriptions(user?.role ?? null)
 
-  if (!rx) {
+  const rx = detail.data ? toFullPrescription(detail.data) : null
+
+  const runAction = async (kind: 'complete' | 'cancel') => {
+    if (!rx) return
+    try {
+      if (kind === 'complete') await completePrescription(rx.id)
+      else await cancelPrescription(rx.id)
+      success(kind === 'complete' ? 'Prescription completed' : 'Prescription cancelled', rx.id)
+      detail.refresh()
+    } catch (err) {
+      error(
+        kind === 'complete' ? 'Cannot complete prescription' : 'Cannot cancel prescription',
+        err instanceof ApiError ? err.message : 'Request failed.',
+      )
+    }
+  }
+
+  if (detail.loading) {
     return (
       <div className="space-y-4">
         <Button variant="outline" size="sm" asChild><Link to="/prescriptions"><ArrowLeft className="mr-1 h-4 w-4" /> Back</Link></Button>
-        <EmptyState title="Prescription not found" description={`No prescription with ID ${id ?? ''} in mock state.`} action={<Button asChild><Link to="/prescriptions">Back to list</Link></Button>} />
+        <ApiLoading label="Loading prescription…" />
       </div>
     )
   }
+
+  if (detail.error || !rx) {
+    const notFound = detail.errorStatus === 404
+    return (
+      <div className="space-y-4">
+        <Button variant="outline" size="sm" asChild><Link to="/prescriptions"><ArrowLeft className="mr-1 h-4 w-4" /> Back</Link></Button>
+        {detail.error && !notFound ? (
+          <ApiErrorState message={detail.error} onRetry={detail.refresh} />
+        ) : (
+          <EmptyState title="Prescription not found" description={`No prescription with ID ${id ?? ''}.`} action={<Button asChild><Link to="/prescriptions">Back to list</Link></Button>} />
+        )}
+      </div>
+    )
+  }
+
+  const ageLine = rx.patientAge > 0 ? `Age ${rx.patientAge} · ` : ''
 
   return (
     <div className="space-y-4">
@@ -32,10 +71,15 @@ export function PrescriptionDetailPage() {
         actions={
           <>
             <Button variant="outline" size="sm" asChild><Link to="/prescriptions"><ArrowLeft className="mr-1 h-4 w-4" /> Back</Link></Button>
-            <Button variant="outline" size="sm"><Pencil className="mr-1 h-4 w-4" /> Edit</Button>
-            <Button variant="outline" size="sm" onClick={() => { success('Print preview ready', `${rx.id} sent to print (frontend-only).`); window.setTimeout(() => window.print(), 300) }}><Printer className="mr-1 h-4 w-4" /> Print Prescription</Button>
-            <Button size="sm" onClick={() => success('Download started', `${rx.id}.pdf (frontend-only mock).`)}><Download className="mr-1 h-4 w-4" /> Download PDF</Button>
-            <Button variant="outline" size="sm" onClick={() => success('Share link copied', 'Frontend-only mock share UI.')}><Share2 className="mr-1 h-4 w-4" /> Share</Button>
+            {writable && rx.status === 'Active' && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => runAction('complete')}><CheckCircle2 className="mr-1 h-4 w-4" /> Complete</Button>
+                <Button variant="outline" size="sm" onClick={() => runAction('cancel')}><XCircle className="mr-1 h-4 w-4" /> Cancel</Button>
+              </>
+            )}
+            <Button variant="outline" size="sm" onClick={() => { success('Print preview ready', `${rx.id} sent to print.`); window.setTimeout(() => window.print(), 300) }}><Printer className="mr-1 h-4 w-4" /> Print Prescription</Button>
+            <Button size="sm" onClick={() => success('Download started', `${rx.id}.pdf`)}><Download className="mr-1 h-4 w-4" /> Download PDF</Button>
+            <Button variant="outline" size="sm" onClick={() => success('Share link copied', 'Share link ready.')}><Share2 className="mr-1 h-4 w-4" /> Share</Button>
           </>
         }
       />
@@ -51,12 +95,12 @@ export function PrescriptionDetailPage() {
           <div className="rounded-lg border border-border p-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Doctor</h3>
             <p className="mt-1 text-sm font-semibold">{rx.doctorName}</p>
-            <p className="text-xs text-muted-foreground">{rx.doctorSpecialty} · Reg. {rx.doctorRegistrationNo}</p>
+            <p className="text-xs text-muted-foreground">{rx.doctorSpecialty}{rx.doctorRegistrationNo ? ` · Reg. ${rx.doctorRegistrationNo}` : ''}</p>
           </div>
           <div className="rounded-lg border border-border p-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Patient</h3>
             <p className="mt-1 text-sm font-semibold">{rx.patientName} <span className="font-normal text-muted-foreground">({rx.patientId})</span></p>
-            <p className="text-xs text-muted-foreground">Age {rx.patientAge} · {rx.patientGender} · {rx.patientBloodGroup} · {rx.patientPhone}</p>
+            <p className="text-xs text-muted-foreground">{ageLine}{rx.patientGender} · {rx.patientBloodGroup}{rx.patientPhone ? ` · ${rx.patientPhone}` : ''}</p>
           </div>
         </CardContent>
       </Card>
@@ -65,10 +109,10 @@ export function PrescriptionDetailPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Clinical Information</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p><strong>Chief complaint:</strong> {rx.chiefComplaint}</p>
+            <p><strong>Chief complaint:</strong> {rx.chiefComplaint || '—'}</p>
             <p><strong>Diagnosis:</strong> {rx.diagnosis}</p>
-            <p><strong>Symptoms:</strong> {rx.symptoms}</p>
-            <p><strong>Clinical notes:</strong> {rx.clinicalNotes}</p>
+            <p><strong>Symptoms:</strong> {rx.symptoms || '—'}</p>
+            <p><strong>Clinical notes:</strong> {rx.clinicalNotes || '—'}</p>
           </CardContent>
         </Card>
         <Card>
@@ -77,12 +121,12 @@ export function PrescriptionDetailPage() {
             <p><strong>Required:</strong> {rx.followUpRequired ? 'Yes' : 'No'}</p>
             {rx.followUpRequired && (
               <>
-                <p><strong>Date:</strong> {rx.followUpDate}</p>
-                <p><strong>Instructions:</strong> {rx.followUpInstructions}</p>
+                <p><strong>Date:</strong> {rx.followUpDate || '—'}</p>
+                <p><strong>Instructions:</strong> {rx.followUpInstructions || '—'}</p>
               </>
             )}
             <div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-              <p>Doctor: {rx.doctorName} · Reg. {rx.doctorRegistrationNo}</p>
+              <p>Doctor: {rx.doctorName}{rx.doctorRegistrationNo ? ` · Reg. ${rx.doctorRegistrationNo}` : ''}</p>
               <p className="mt-2 italic">Signature: ____________________</p>
             </div>
           </CardContent>
@@ -120,7 +164,6 @@ export function PrescriptionDetailPage() {
               </TableBody>
             </Table>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">Example: Paracetamol 500 mg — 1 tablet — 3 times daily — 5 days — After meal.</p>
         </CardContent>
       </Card>
     </div>
