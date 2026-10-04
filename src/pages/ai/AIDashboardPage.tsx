@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -17,7 +18,9 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { AIActivityStatusBadge, AIStatusBadge } from '@/components/ai/AIBadges'
 import { AIDisclaimer } from '@/components/ai/AIDisclaimer'
-import { AI_DASHBOARD_STATS, MOCK_AI_ACTIVITY } from '@/data/ai'
+import { ApiLoading } from '@/components/shared/ApiState'
+import { listAIInsights, listNoShowPredictions } from '@/lib/api/ai'
+import type { BackendAIInsight } from '@/lib/api/ai'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,19 +66,54 @@ const MODULES: AIModuleCard[] = [
     title: 'Health Analytics',
     href: '/ai/health-analytics',
     icon: Activity,
-    description: 'Operational trends, disease patterns and resource utilization from mock data.',
+    description: 'Operational trends, disease patterns and resource utilization from live data.',
     status: 'Ready',
   },
 ]
 
+function insightStatus(status: string): 'Completed' | 'Reviewed' | 'Pending Review' {
+  return status === 'Reviewed' ? 'Reviewed' : status === 'Completed' ? 'Completed' : 'Pending Review'
+}
+
 export function AIDashboardPage() {
-  const recent = MOCK_AI_ACTIVITY.slice(0, 5)
+  const [insights, setInsights] = useState<BackendAIInsight[]>([])
+  const [highRisk, setHighRisk] = useState(0)
+  const [predictedNoShows, setPredictedNoShows] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    Promise.all([listAIInsights({ page_size: 5 }), listNoShowPredictions()])
+      .then(([insightsPage, predictions]) => {
+        if (!active) return
+        setInsights(insightsPage.results)
+        setHighRisk(predictions.filter((p) => p.riskLevel === 'High').length)
+        setPredictedNoShows(
+          predictions.filter((p) => p.riskLevel === 'High' || p.riskLevel === 'Medium').length,
+        )
+      })
+      .catch(() => {
+        if (active) {
+          setInsights([])
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const symptomChecks = insights.filter((i) => i.module === 'Symptom Checker').length
+  const clinicalQueries = insights.filter((i) => i.module === 'Clinical Assistant').length
+  const pendingReviews = insights.filter((i) => i.review_status === 'Pending Review').length
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="AI Clinical & Operational Intelligence"
-        description="Mock AI prototypes · frontend demonstration only, no external AI API"
+        description="Rule-based decision support over live hospital data · physician review required"
         actions={
           <Button variant="outline" asChild>
             <Link to="/ai/activity">
@@ -86,11 +124,11 @@ export function AIDashboardPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard icon={ClipboardCheck} label="Symptom Checks Today" value={AI_DASHBOARD_STATS.symptomChecksToday} hint="Triage assessments" />
-        <StatCard icon={AlertTriangle} label="High-Risk Cases" value={AI_DASHBOARD_STATS.highRiskCases} hint="Needs urgent review" />
-        <StatCard icon={MessageSquareText} label="AI Clinical Queries" value={AI_DASHBOARD_STATS.clinicalQueries} hint="This week" />
-        <StatCard icon={Pill} label="Prescription Reviews" value={AI_DASHBOARD_STATS.prescriptionReviews} hint="Pending sign-off" />
-        <StatCard icon={UserX} label="Predicted No-Shows" value={AI_DASHBOARD_STATS.predictedNoShows} hint="Upcoming appointments" />
+        <StatCard icon={ClipboardCheck} label="Symptom Checks" value={loading ? '…' : symptomChecks} hint="Recent sessions" />
+        <StatCard icon={AlertTriangle} label="High-Risk Cases" value={loading ? '…' : highRisk} hint="Needs urgent review" />
+        <StatCard icon={MessageSquareText} label="AI Clinical Queries" value={loading ? '…' : clinicalQueries} hint="Recent sessions" />
+        <StatCard icon={Pill} label="Pending Reviews" value={loading ? '…' : pendingReviews} hint="Awaiting sign-off" />
+        <StatCard icon={UserX} label="Predicted No-Shows" value={loading ? '…' : predictedNoShows} hint="Upcoming appointments" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -124,19 +162,27 @@ export function AIDashboardPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            <ul className="divide-y divide-border">
-              {recent.map((a) => (
-                <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{a.action}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {a.module} · {a.user} · {a.timestamp}
-                    </p>
-                  </div>
-                  <AIActivityStatusBadge status={a.status} />
-                </li>
-              ))}
-            </ul>
+            {loading ? (
+              <ApiLoading label="Loading activity…" />
+            ) : insights.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No AI activity yet — run an assessment to populate this feed.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {insights.map((a) => (
+                  <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{a.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {a.module} · {a.patient_name ?? '—'} · {a.created_at.slice(0, 16).replace('T', ' ')}
+                      </p>
+                    </div>
+                    <AIActivityStatusBadge status={insightStatus(a.review_status)} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -41,6 +41,8 @@ class AuditAction(models.TextChoices):
     INVOICE_CANCELLED = "INVOICE_CANCELLED", "Invoice cancelled"
     PAYMENT_CREATED = "PAYMENT_CREATED", "Payment recorded"
     PAYMENT_REVERSED = "PAYMENT_REVERSED", "Payment reversed"
+    AI_ANALYSIS_CREATED = "AI_ANALYSIS_CREATED", "AI analysis generated"
+    AI_INSIGHT_REVIEWED = "AI_INSIGHT_REVIEWED", "AI insight reviewed"
 
 
 class AuditLog(models.Model):

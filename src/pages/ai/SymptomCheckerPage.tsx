@@ -1,10 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Plus, RotateCcw, Save, Trash2, UserRoundPlus } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
+import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
-import { AI_SYMPTOM_CATALOG, analyzeSymptomsMock } from '@/data/ai'
+import { AI_SYMPTOM_CATALOG } from '@/data/ai'
 import type { AISymptomEntry, AISymptomSeverity, AITriageResult, Gender } from '@/data/types'
+import { checkSymptoms, reviewInsight, type BackendTriageResult } from '@/lib/api/ai'
+import { getPatientDetail, listPatientsLookup, type LookupPatient } from '@/lib/api/lookups'
+import { canUseClinicalAI } from '@/lib/api/hooks'
+import { ApiError } from '@/lib/api/client'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { AIStatusBadge, AITriageBadge } from '@/components/ai/AIBadges'
@@ -22,11 +26,12 @@ import { cn } from '@/lib/utils'
 const STEPS = ['Patient Information', 'Symptoms', 'Additional Information', 'AI Analysis']
 
 export function SymptomCheckerPage() {
-  const { patients } = useHospitalStore()
+  const { user } = useAuth()
   const { success, error } = useToast()
 
   const [step, setStep] = useState(0)
   const [patientId, setPatientId] = useState('')
+  const [lookupPatients, setLookupPatients] = useState<LookupPatient[]>([])
   const [age, setAge] = useState('')
   const [gender, setGender] = useState<Gender>('Male')
   const [conditions, setConditions] = useState('')
@@ -44,6 +49,9 @@ export function SymptomCheckerPage() {
 
   const [analyzing, setAnalyzing] = useState(false)
   const [result, setResult] = useState<AITriageResult | null>(null)
+  const [insightId, setInsightId] = useState<string | null>(null)
+  const apiResult = useRef<BackendTriageResult | null>(null)
+  const apiFailed = useRef(false)
 
   const catalogResults = useMemo(() => {
     const q = catalogQuery.trim().toLowerCase()
@@ -55,14 +63,26 @@ export function SymptomCheckerPage() {
 
   const pickPatient = (id: string) => {
     setPatientId(id)
-    const p = patients.find((x) => x.id === id)
-    if (p) {
-      setAge(String(p.age))
-      setGender(p.gender)
-      setConditions(p.chronicConditions.join(', '))
-      setAllergies(p.allergies.join(', '))
-    }
+    getPatientDetail(id)
+      .then((p) => {
+        if (p.date_of_birth) {
+          const years = Math.floor(
+            (Date.now() - new Date(p.date_of_birth).getTime()) / 31557600000,
+          )
+          setAge(String(Math.max(0, years)))
+        }
+        setGender(p.gender as Gender)
+        setConditions((p.chronic_conditions ?? []).join(', '))
+        setAllergies((p.allergies ?? []).join(', '))
+      })
+      .catch(() => undefined)
   }
+
+  useEffect(() => {
+    listPatientsLookup()
+      .then((page) => setLookupPatients(page.results))
+      .catch(() => setLookupPatients([]))
+  }, [])
 
   const addSymptom = (name: string, category: string) => {
     if (symptoms.some((s) => s.name === name)) {
@@ -85,20 +105,70 @@ export function SymptomCheckerPage() {
   const startAnalysis = () => {
     setAnalyzing(true)
     setResult(null)
-  }
-
-  const finishAnalysis = () => {
-    setResult(
-      analyzeSymptomsMock(symptoms, {
+    setInsightId(null)
+    apiResult.current = null
+    apiFailed.current = false
+    checkSymptoms({
+      patient: patientId || null,
+      age: age ? Number(age) : undefined,
+      gender,
+      conditions: conditions.split(',').map((s) => s.trim()).filter(Boolean),
+      allergies: allergies.split(',').map((s) => s.trim()).filter(Boolean),
+      symptoms: symptoms.map((s) => ({
+        name: s.name,
+        category: s.category,
+        severity: s.severity,
+        duration: s.duration,
+        notes: s.notes,
+      })),
+      vitals: {
         temperature,
         bloodPressure,
         heartRate,
         oxygenSaturation,
         recentMedications,
         additionalNotes,
-      }),
-    )
+      },
+    })
+      .then((triage) => {
+        apiResult.current = triage
+      })
+      .catch(() => {
+        apiFailed.current = true
+      })
+  }
+
+  const finishAnalysis = () => {
+    const triage = apiResult.current
+    if (apiFailed.current || !triage) {
+      error('Analysis failed', 'The triage service could not complete this assessment.')
+      setAnalyzing(false)
+      return
+    }
+    setResult({
+      level: triage.level,
+      department: triage.department,
+      considerations: triage.considerations,
+      riskIndicators: triage.riskIndicators,
+      nextAction: triage.nextAction,
+      confidence: triage.confidence,
+    })
+    setInsightId(triage.insight)
     setAnalyzing(false)
+  }
+
+  const saveAssessment = async () => {
+    if (!insightId) return
+    if (!canUseClinicalAI(user?.role ?? null)) {
+      success('Assessment saved', 'Recorded to the AI activity log for physician review.')
+      return
+    }
+    try {
+      await reviewInsight(insightId, 'Reviewed from Symptom Checker.')
+      success('Assessment reviewed', 'Physician sign-off recorded.')
+    } catch (err) {
+      error('Review failed', err instanceof ApiError ? err.message : 'Request failed.')
+    }
   }
 
   const resetAll = () => {
@@ -115,16 +185,17 @@ export function SymptomCheckerPage() {
     setRecentMedications('')
     setAdditionalNotes('')
     setResult(null)
+    setInsightId(null)
     setAnalyzing(false)
   }
 
-  const selectedPatient = patients.find((p) => p.id === patientId)
+  const selectedPatient = lookupPatients.find((p) => p.id === patientId)
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="AI Symptom Checker & Triage"
-        description="Mock triage prototype · clinical assistance only, never a diagnosis"
+        description="Rule-based triage decision support · never a diagnosis"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link to="/ai">
@@ -166,9 +237,9 @@ export function SymptomCheckerPage() {
                   <SelectValue placeholder="Select patient" />
                 </SelectTrigger>
                 <SelectContent>
-                  {patients.map((p) => (
+                  {lookupPatients.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.firstName} {p.lastName} ({p.id})
+                      {p.name} ({p.phone})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -328,7 +399,7 @@ export function SymptomCheckerPage() {
             <Card>
               <CardContent className="space-y-3 p-6 text-center">
                 <p className="text-sm text-muted-foreground">
-                  Ready to run the mock analysis for {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : 'the patient'} with{' '}
+                  Ready to run the analysis for {selectedPatient ? selectedPatient.name : 'the patient'} with{' '}
                   {symptoms.length} symptom{symptoms.length === 1 ? '' : 's'}.
                 </p>
                 <Button onClick={startAnalysis}>Run AI Analysis</Button>
@@ -370,10 +441,7 @@ export function SymptomCheckerPage() {
                 <Button variant="outline" onClick={resetAll}>
                   <RotateCcw className="mr-1 h-4 w-4" /> Start New Assessment
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => success('Assessment saved', 'Mock assessment recorded to AI activity (frontend only).')}
-                >
+                <Button variant="outline" onClick={saveAssessment}>
                   <Save className="mr-1 h-4 w-4" /> Save Assessment
                 </Button>
                 <Button asChild>

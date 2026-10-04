@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "apps.laboratory",
     "apps.pharmacy",
     "apps.billing",
+    "apps.ai",
     "apps.automation",
 ]
 
@@ -178,6 +179,9 @@ SPECTACULAR_SETTINGS = {
         "PaymentMethodEnum": "apps.billing.models.PaymentMethod",
         "PaymentStatusEnum": "apps.billing.models.PaymentStatus",
         "LedgerTypeEnum": "apps.billing.models.LedgerType",
+        "AIModuleEnum": "apps.ai.models.AIModule",
+        "AIInsightKindEnum": "apps.ai.models.AIInsightKind",
+        "AIReviewStatusEnum": "apps.ai.models.AIReviewStatus",
     },
     "TAGS": [
         {"name": "auth", "description": "Registration, JWT login/refresh/logout, current user."},
@@ -192,5 +196,6 @@ SPECTACULAR_SETTINGS = {
         {"name": "invoices", "description": "Itemized invoices with server-derived totals."},
         {"name": "payments", "description": "Ledger-grade payment records."},
         {"name": "ledger", "description": "Immutable revenue ledger (read-only)."},
+        {"name": "ai", "description": "Clinical & operational intelligence (decision support)."},
     ],
 }

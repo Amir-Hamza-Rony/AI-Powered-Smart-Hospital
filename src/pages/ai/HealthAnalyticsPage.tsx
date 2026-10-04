@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArcElement,
@@ -13,18 +13,9 @@ import {
 } from 'chart.js'
 import { Bar, Doughnut, Line } from 'react-chartjs-2'
 import { ArrowLeft, FlaskConical, Pill, Stethoscope, Users } from 'lucide-react'
-import {
-  AI_ANALYTICS_RANGES,
-  AI_COMPLETION,
-  AI_CONDITION_TRENDS,
-  AI_DEPARTMENT_WORKLOAD,
-  AI_DOCTOR_UTILIZATION,
-  AI_LAB_ABNORMAL,
-  AI_PEAK_HOURS,
-  AI_PHARMACY_DEMAND,
-  AI_VISITS_SERIES,
-  type AIAnalyticsRange,
-} from '@/data/ai'
+import { AI_ANALYTICS_RANGES, type AIAnalyticsRange } from '@/data/ai'
+import { getAnalytics, type BackendAnalytics } from '@/lib/api/ai'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { AIStatusBadge } from '@/components/ai/AIBadges'
@@ -47,23 +38,61 @@ export function HealthAnalyticsPage() {
   const [range, setRange] = useState<AIAnalyticsRange | 'custom'>('7d')
   const [customFrom, setCustomFrom] = useState('2026-09-01')
   const [customTo, setCustomTo] = useState('2026-09-30')
+  const [data, setData] = useState<BackendAnalytics | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [errorStatus, setErrorStatus] = useState<number | null>(null)
+  const [nonce, setNonce] = useState(0)
 
-  const effective: AIAnalyticsRange = range === 'custom' ? '30d' : range
-  const visits = AI_VISITS_SERIES[effective]
-  const pharmacy = AI_PHARMACY_DEMAND[effective]
+  // Custom ranges map to the nearest supported window on the backend.
+  const effective: AIAnalyticsRange =
+    range === 'custom'
+      ? Math.round(
+          (new Date(customTo).getTime() - new Date(customFrom).getTime()) / 86400000,
+        ) > 31
+        ? '3m'
+        : '30d'
+      : range
 
-  const kpis = useMemo(() => {
-    const totalVisits = visits.visits.reduce((a, b) => a + b, 0)
-    const totalAppts = visits.appointments.reduce((a, b) => a + b, 0)
-    const completion = Math.round((AI_COMPLETION.completed / (AI_COMPLETION.completed + AI_COMPLETION.noShow + AI_COMPLETION.cancelled + AI_COMPLETION.pending)) * 100)
-    return { totalVisits, totalAppts, completion, avgWait: '18 min' }
-  }, [visits])
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    getAnalytics(effective)
+      .then((analytics) => {
+        if (!active) return
+        setData(analytics)
+        setLoadError(null)
+        setErrorStatus(null)
+      })
+      .catch((err: unknown) => {
+        if (!active) return
+        setData(null)
+        setLoadError(err instanceof Error ? err.message : 'Failed to load analytics.')
+        setErrorStatus((err as { status?: number })?.status ?? null)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [effective, nonce])
+
+  const visits = data?.visits ?? { labels: [], visits: [], appointments: [] }
+  const pharmacy = data?.pharmacyDemand ?? { labels: [], dispensed: [] }
+  const completion = data?.completion ?? { completed: 0, noShow: 0, cancelled: 0, pending: 0 }
+
+  const totalVisits = visits.visits.reduce((a, b) => a + b, 0)
+  const totalAppts = visits.appointments.reduce((a, b) => a + b, 0)
+  const completionBase = completion.completed + completion.noShow + completion.cancelled + completion.pending
+  const completionRate = completionBase > 0 ? Math.round((completion.completed / completionBase) * 100) : 0
+  const kpis = { totalVisits, totalAppts, completion: completionRate, avgWait: '—' }
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="AI Health Analytics"
-        description="Operational, clinical and resource trends · simulated mock data"
+        description="Operational, clinical and resource trends · computed from live hospital data"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link to="/ai">
@@ -73,6 +102,14 @@ export function HealthAnalyticsPage() {
         }
       />
 
+      {loading ? (
+        <ApiLoading label="Computing analytics…" />
+      ) : errorStatus === 403 ? (
+        <ApiForbiddenState message={loadError} />
+      ) : loadError || !data ? (
+        <ApiErrorState message={loadError} onRetry={() => setNonce((n) => n + 1)} />
+      ) : (
+        <>
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-end lg:justify-between">
           <Tabs value={range} onValueChange={(v) => setRange(v as AIAnalyticsRange | 'custom')}>
@@ -96,7 +133,7 @@ export function HealthAnalyticsPage() {
                 <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label="Custom range to" />
               </div>
               <p className="w-full text-xs text-muted-foreground lg:w-auto">
-                Custom range maps to the nearest mock series ({customFrom} → {customTo}).
+                Custom range uses the nearest supported window ({customFrom} → {customTo}).
               </p>
             </div>
           )}
@@ -104,8 +141,8 @@ export function HealthAnalyticsPage() {
       </Card>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={Users} label="Patient Visits" value={kpis.totalVisits} hint="In selected period (mock)" />
-        <StatCard icon={Stethoscope} label="Appointments" value={kpis.totalAppts} hint="Booked volume (mock)" />
+        <StatCard icon={Users} label="Patient Visits" value={kpis.totalVisits} hint="In selected period" />
+        <StatCard icon={Stethoscope} label="Appointments" value={kpis.totalAppts} hint="Booked volume" />
         <StatCard icon={FlaskConical} label="Completion Rate" value={`${kpis.completion}%`} hint="Completed share" />
         <StatCard icon={Pill} label="Avg. Waiting Time" value={kpis.avgWait} hint="Trend indicator" />
       </div>
@@ -141,8 +178,8 @@ export function HealthAnalyticsPage() {
             <div className="h-[260px]">
               <Bar
                 data={{
-                  labels: AI_DEPARTMENT_WORKLOAD.labels,
-                  datasets: [{ label: 'Cases', data: AI_DEPARTMENT_WORKLOAD.load, backgroundColor: TEAL, borderRadius: 6 }],
+                  labels: data.departmentWorkload.labels,
+                  datasets: [{ label: 'Cases', data: data.departmentWorkload.load, backgroundColor: TEAL, borderRadius: 6 }],
                 }}
                 options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }}
               />
@@ -160,7 +197,7 @@ export function HealthAnalyticsPage() {
               <Doughnut
                 data={{
                   labels: ['Completed', 'No-show', 'Cancelled', 'Pending'],
-                  datasets: [{ data: [AI_COMPLETION.completed, AI_COMPLETION.noShow, AI_COMPLETION.cancelled, AI_COMPLETION.pending], backgroundColor: [TEAL, RED, AMBER, SLATE], borderWidth: 2 }],
+                  datasets: [{ data: [completion.completed, completion.noShow, completion.cancelled, completion.pending], backgroundColor: [TEAL, RED, AMBER, SLATE], borderWidth: 2 }],
                 }}
                 options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }}
               />
@@ -177,8 +214,8 @@ export function HealthAnalyticsPage() {
             <div className="h-[260px]">
               <Bar
                 data={{
-                  labels: AI_PEAK_HOURS.labels,
-                  datasets: [{ label: 'Arrivals', data: AI_PEAK_HOURS.volume, backgroundColor: AMBER, borderRadius: 6 }],
+                  labels: data.peakHours.labels,
+                  datasets: [{ label: 'Arrivals', data: data.peakHours.volume, backgroundColor: AMBER, borderRadius: 6 }],
                 }}
                 options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }}
               />
@@ -195,8 +232,8 @@ export function HealthAnalyticsPage() {
             <div className="h-[260px]">
               <Bar
                 data={{
-                  labels: AI_CONDITION_TRENDS.labels,
-                  datasets: [{ label: 'Cases', data: AI_CONDITION_TRENDS.cases, backgroundColor: TEAL, borderRadius: 6 }],
+                  labels: data.conditionTrends.labels,
+                  datasets: [{ label: 'Cases', data: data.conditionTrends.cases, backgroundColor: TEAL, borderRadius: 6 }],
                 }}
                 options={{
                   indexAxis: 'y',
@@ -234,7 +271,10 @@ export function HealthAnalyticsPage() {
             <CardTitle className="text-base">Abnormal Lab Indicators</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {AI_LAB_ABNORMAL.map((l) => (
+            {data.labAbnormal.length === 0 && (
+              <p className="text-sm text-muted-foreground">No abnormal indicators in this period.</p>
+            )}
+            {data.labAbnormal.map((l) => (
               <div key={l.indicator} className="flex items-center justify-between gap-2 text-sm">
                 <span>{l.indicator}</span>
                 <span className="font-semibold">{l.count}</span>
@@ -247,7 +287,10 @@ export function HealthAnalyticsPage() {
             <CardTitle className="text-base">Doctor Utilization</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {AI_DOCTOR_UTILIZATION.map((d) => (
+            {data.doctorUtilization.length === 0 && (
+              <p className="text-sm text-muted-foreground">No appointment volume in this period.</p>
+            )}
+            {data.doctorUtilization.map((d) => (
               <div key={d.doctor} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span>{d.doctor}</span>
@@ -263,6 +306,8 @@ export function HealthAnalyticsPage() {
       </div>
 
       <AIDisclaimer variant="analytics" />
+        </>
+      )}
     </div>
   )
 }
