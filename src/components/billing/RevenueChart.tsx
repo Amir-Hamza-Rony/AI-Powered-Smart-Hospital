@@ -16,11 +16,15 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 export function RevenueChart({
   range,
   onRangeChange,
+  data,
 }: {
   range: 'daily' | 'weekly' | 'monthly'
   onRangeChange: (r: 'daily' | 'weekly' | 'monthly') => void
+  /** Live series; falls back to static mock series when omitted. */
+  data?: Array<{ label: string; revenue: number }>
 }) {
-  const data = range === 'daily' ? REVENUE_BY_DAY : range === 'weekly' ? REVENUE_BY_WEEK : REVENUE_BY_MONTH
+  const fallback = range === 'daily' ? REVENUE_BY_DAY : range === 'weekly' ? REVENUE_BY_WEEK : REVENUE_BY_MONTH
+  const series = data ?? fallback
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
@@ -37,11 +41,11 @@ export function RevenueChart({
         <div className="h-[260px]">
           <Bar
             data={{
-              labels: data.map((d) => d.label),
+              labels: series.map((d) => d.label),
               datasets: [
                 {
                   label: 'Revenue (৳)',
-                  data: data.map((d) => d.revenue),
+                  data: series.map((d) => d.revenue),
                   backgroundColor: '#0d9488',
                   borderRadius: 6,
                 },

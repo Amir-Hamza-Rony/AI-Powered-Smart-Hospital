@@ -134,6 +134,10 @@ export function canManageInventory(role: BackendRole | null): boolean {
   return role === 'SUPER_ADMIN' || role === 'PHARMACIST'
 }
 
+export function canManageBilling(role: BackendRole | null): boolean {
+  return isStaffRole(role)
+}
+
 export function isStaffRole(role: BackendRole | null): boolean {
   return role !== null && role !== 'PATIENT'
 }

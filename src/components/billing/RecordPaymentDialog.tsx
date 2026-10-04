@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useHospitalStore, nextId } from '@/store/HospitalStore'
 import { useToast } from '@/context/ToastContext'
 import { PAYMENT_METHODS, formatBDT } from '@/data/billing'
 import type { PaymentMethod } from '@/data/types'
+import { createPayment, listInvoices, type BackendInvoice } from '@/lib/api/billing'
+import { ApiError } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -14,35 +15,47 @@ export function RecordPaymentDialog({
   open,
   onOpenChange,
   defaultInvoiceId,
+  onRecorded,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   defaultInvoiceId?: string
+  onRecorded?: () => void
 }) {
-  const { invoices, payments, addPayment } = useHospitalStore()
   const { success, error } = useToast()
+  const [invoices, setInvoices] = useState<BackendInvoice[]>([])
   const [invoiceId, setInvoiceId] = useState(defaultInvoiceId ?? '')
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<PaymentMethod>('Cash')
   const [reference, setReference] = useState('')
-  const [date, setDate] = useState('2026-10-01')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // Reset dialog fields whenever it opens (possibly with a different invoice).
   useEffect(() => {
     if (!open) return
-    const inv = invoices.find((i) => i.id === defaultInvoiceId)
     setInvoiceId(defaultInvoiceId ?? '')
-    setAmount(inv ? String(inv.due) : '')
+    setAmount('')
     setReference('')
     setNotes('')
-    setDate('2026-10-01')
+    setDate(new Date().toISOString().slice(0, 10))
     setMethod('Cash')
+    listInvoices({ page_size: 100 })
+      .then((page) => {
+        const openInvoices = page.results.filter(
+          (inv) => inv.status !== 'Cancelled' && inv.status !== 'Draft',
+        )
+        setInvoices(openInvoices)
+        const preselected = openInvoices.find((inv) => inv.id === defaultInvoiceId)
+        if (preselected) setAmount(preselected.due_amount)
+      })
+      .catch(() => setInvoices([]))
   }, [open, defaultInvoiceId])
 
   const selected = invoices.find((i) => i.id === invoiceId)
 
-  const submit = () => {
+  const submit = async () => {
     if (!invoiceId || !selected) {
       error('Select an invoice', 'Choose the invoice this payment belongs to.')
       return
@@ -52,26 +65,30 @@ export function RecordPaymentDialog({
       error('Invalid amount', 'Enter a payment amount greater than zero.')
       return
     }
-    if (amt > selected.due + 0.001 && selected.due > 0) {
-      error('Amount exceeds due', `${selected.id} has ${formatBDT(selected.due)} outstanding.`)
+    if (amt > Number(selected.due_amount) + 0.001 && Number(selected.due_amount) > 0) {
+      error('Amount exceeds due', `${selected.invoice_number} has ${formatBDT(Number(selected.due_amount))} outstanding.`)
       return
     }
-    const id = nextId('PAY', payments.map((p) => p.id))
-    addPayment({
-      id,
-      invoiceId: selected.id,
-      patientId: selected.patientId,
-      patientName: selected.patientName,
-      amount: amt,
-      paymentMethod: method,
-      reference: reference.trim() || `${method.toUpperCase().slice(0, 4)}-${id.slice(-4)}`,
-      status: 'Completed',
-      date,
-      recordedBy: 'Cashier — L. Begum',
-      notes: notes.trim(),
-    })
-    success('Payment recorded', `${id} · ${formatBDT(amt)} applied to ${selected.id} (mock state).`)
-    onOpenChange(false)
+    setSaving(true)
+    try {
+      await createPayment({
+        invoice: selected.id,
+        patient: selected.patient,
+        amount: amt,
+        payment_date: date,
+        payment_method: method,
+        reference: reference.trim(),
+        status: 'Completed',
+        notes: notes.trim(),
+      })
+      success('Payment recorded', `${formatBDT(amt)} applied to ${selected.invoice_number}.`)
+      onOpenChange(false)
+      onRecorded?.()
+    } catch (err) {
+      error('Payment failed', err instanceof ApiError ? err.message : 'Request failed.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -79,7 +96,7 @@ export function RecordPaymentDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>Record Payment</DialogTitle>
-          <DialogDescription>Apply a frontend-only payment to an invoice. No gateway involved.</DialogDescription>
+          <DialogDescription>Apply a payment to an invoice. No gateway involved.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="space-y-1.5">
@@ -89,19 +106,17 @@ export function RecordPaymentDialog({
                 <SelectValue placeholder="Select invoice" />
               </SelectTrigger>
               <SelectContent>
-                {invoices
-                  .filter((i) => i.status !== 'Cancelled' && i.status !== 'Draft')
-                  .map((i) => (
-                    <SelectItem key={i.id} value={i.id}>
-                      {i.id} · {i.patientName} · due {formatBDT(i.due)}
-                    </SelectItem>
-                  ))}
+                {invoices.map((i) => (
+                  <SelectItem key={i.id} value={i.id}>
+                    {i.invoice_number} · {i.patient_name} · due {formatBDT(Number(i.due_amount))}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {selected && (
               <p className="text-xs text-muted-foreground">
-                {selected.patientName} ({selected.patientId}) · Total {formatBDT(selected.total)} · Paid{' '}
-                {formatBDT(selected.paid)} · Due {formatBDT(selected.due)}
+                {selected.patient_name} · Total {formatBDT(Number(selected.total))} · Paid{' '}
+                {formatBDT(Number(selected.paid_amount))} · Due {formatBDT(Number(selected.due_amount))}
               </p>
             )}
           </div>
@@ -145,7 +160,7 @@ export function RecordPaymentDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit}>Record Payment</Button>
+          <Button disabled={saving} onClick={submit}>{saving ? 'Recording…' : 'Record Payment'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

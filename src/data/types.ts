@@ -292,6 +292,8 @@ export interface InvoiceItem {
 
 export interface Invoice {
   id: string
+  /** Human-friendly backend invoice number (INV-…); id stays the UUID. */
+  invoiceNumber?: string
   patientId: string
   patientName: string
   patientPhone: string

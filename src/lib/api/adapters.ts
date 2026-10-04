@@ -8,6 +8,11 @@ import type {
   InventoryItem,
   DispensingRecord,
   StockStatus,
+  Invoice,
+  InvoiceItem,
+  Payment,
+  LedgerTransaction,
+  LedgerType,
 } from '@/data/types'
 import type { BackendPrescription, BackendPrescriptionItem } from '@/lib/api/prescriptions'
 import type { BackendLabOrder, BackendLabOrderItem, BackendLabTest } from '@/lib/api/laboratory'
@@ -178,5 +183,86 @@ export function toDispensingRecord(record: BackendDispensingRecord): DispensingR
     prescribedQuantity: prescribed,
     dispensedQuantity: dispensed,
     status: record.status,
+  }
+}
+
+/* ---------------- Phase 11: billing ---------------- */
+
+import type {
+  BackendInvoice,
+  BackendLedgerEntry,
+  BackendPayment,
+} from '@/lib/api/billing'
+
+export function toInvoiceItem(item: BackendInvoice['items'][number]): InvoiceItem {
+  return {
+    id: item.id,
+    name: item.description,
+    category: item.category as InvoiceItem['category'],
+    quantity: item.quantity,
+    unitPrice: Number(item.unit_price),
+    discount: Number(item.discount),
+    tax: Number(item.tax),
+    total: Number(item.line_total),
+  }
+}
+
+export function toInvoice(invoice: BackendInvoice): Invoice {
+  return {
+    id: invoice.id,
+    invoiceNumber: invoice.invoice_number,
+    patientId: invoice.patient,
+    patientName: invoice.patient_name,
+    patientPhone: invoice.patient_phone,
+    serviceType: invoice.service_type as Invoice['serviceType'],
+    issueDate: invoice.issue_date,
+    dueDate: invoice.due_date,
+    paymentTerms: '',
+    items: invoice.items.map(toInvoiceItem),
+    subtotal: Number(invoice.subtotal),
+    discount: Number(invoice.discount),
+    tax: Number(invoice.tax),
+    total: Number(invoice.total),
+    paid: Number(invoice.paid_amount),
+    due: Number(invoice.due_amount),
+    status: invoice.status,
+    notes: invoice.notes,
+    createdBy: '',
+  }
+}
+
+export function toPayment(payment: BackendPayment): Payment {
+  return {
+    id: payment.id,
+    invoiceId: payment.invoice,
+    patientId: payment.patient,
+    patientName: payment.patient_name,
+    amount: Number(payment.amount),
+    paymentMethod: payment.payment_method as Payment['paymentMethod'],
+    reference: payment.reference,
+    status: payment.status,
+    date: payment.payment_date,
+    recordedBy: '',
+    notes: payment.notes,
+  }
+}
+
+const DEBIT_TYPES: ReadonlySet<string> = new Set(['Refund', 'Adjustment'])
+
+export function toLedgerTransaction(entry: BackendLedgerEntry, balance: number): LedgerTransaction {
+  const amount = Number(entry.amount)
+  const isDebit = DEBIT_TYPES.has(entry.type)
+  const [, time] = entry.created_at.split('T')
+  return {
+    id: entry.id,
+    date: entry.transaction_date,
+    time: (time ?? '').slice(0, 8),
+    type: entry.type as LedgerType,
+    reference: entry.reference || entry.invoice_number || entry.id.slice(0, 8),
+    description: entry.description,
+    debit: isDebit ? amount : 0,
+    credit: isDebit ? 0 : amount,
+    balance,
+    recordedBy: '',
   }
 }
