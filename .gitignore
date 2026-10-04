@@ -1,6 +1,14 @@
 # Logs
 logs
 *.log
+
+# Backend (Django)
+backend/venv/
+backend/.env
+backend/*.sqlite3
+backend/db.sqlite3
+__pycache__/
+*.py[cod]
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -33,6 +33,7 @@ import { StatCard } from '@/components/shared/StatCard'
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge'
 import { formatBDT } from '@/data/billing'
 import { AI_DASHBOARD_STATS, MOCK_AI_ACTIVITY } from '@/data/ai'
+import { useAutomationStore } from '@/store/AutomationStore'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -71,6 +72,14 @@ export function DashboardPage() {
   const pendingPayments = invoices.filter((i) => i.status === 'Pending').reduce((s, i) => s + i.due, 0)
   const outstandingDues = invoices.reduce((s, i) => s + i.due, 0)
   const recentTransactions = [...payments].slice(0, 4)
+
+  const { reminders, labAlerts, stockAlerts, queue, events } = useAutomationStore()
+  const upcomingReminders = reminders.filter((r) => r.status === 'Scheduled' || r.status === 'Pending').length
+  const criticalStock = stockAlerts.filter((s) => !s.resolved && s.status === 'Critical').length
+  const readyLabAlerts = labAlerts.filter((l) => l.status === 'Ready')
+  const waitingQueue = queue.filter((q) => q.status === 'Waiting')
+  const currentSerial = [...queue].reverse().find((q) => q.status === 'Called')?.serial ?? '—'
+  const recentAutomationEvents = events.slice(0, 3)
 
   return (
     <div className="space-y-6">
@@ -206,6 +215,76 @@ export function DashboardPage() {
             </ul>
           </CardContent>
         </Card>
+      </section>
+
+      {/* Automation & real-time operations summary (Phase 6, additive, mock simulation) */}
+      <section aria-label="Automation summary">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Automation & Real-Time Operations</h2>
+          <Link to="/automation" className="text-xs font-medium text-primary hover:underline">
+            Open automation →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Link to="/automation/reminders"><StatCard icon={CalendarClock} label="Upcoming Reminders" value={upcomingReminders} hint="Scheduled + pending" /></Link>
+          <Link to="/automation/stock-alerts"><StatCard icon={Package} label="Critical Stock" value={criticalStock} hint="Needs reorder" /></Link>
+          <Link to="/automation/lab-alerts"><StatCard icon={FlaskConical} label="Reports Ready" value={readyLabAlerts.length} hint="Awaiting review" /></Link>
+          <Link to="/automation/queue"><StatCard icon={Users} label="Waiting in Queue" value={waitingQueue.length} hint={`Now serving ${currentSerial}`} /></Link>
+        </div>
+        <div className="mt-3 grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Recent Lab Alerts</CardTitle>
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/automation/lab-alerts">View all</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {readyLabAlerts.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">No reports awaiting review.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {readyLabAlerts.slice(0, 3).map((l) => (
+                    <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium">
+                          {l.labOrderId} — {l.test}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {l.patientName} · {l.orderedBy}
+                        </p>
+                      </div>
+                      <Badge>{l.status}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Recent Automation Events</CardTitle>
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/automation/activity">View all</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ul className="divide-y divide-border">
+                {recentAutomationEvents.map((e) => (
+                  <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium">{e.eventType}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {e.workflow} · {e.triggeredAt}
+                      </p>
+                    </div>
+                    <Badge>{e.status}</Badge>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       {/* Appointment overview: chart + today's list */}

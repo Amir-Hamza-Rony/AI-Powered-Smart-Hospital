@@ -1,4 +1,7 @@
-import { Bell, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Bell, LogIn, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { useRole } from '@/context/RoleContext'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +18,15 @@ interface HeaderProps {
 
 export function Header({ collapsed, onToggleCollapse, onOpenMobileNav }: HeaderProps) {
   const { roleMeta } = useRole()
+  const { user, isDemo, logout } = useAuth()
+  const { success } = useToast()
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await logout()
+    success('Signed out', 'Your session has ended.')
+    navigate('/login')
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background/80 px-3 backdrop-blur sm:px-4">
@@ -55,6 +67,24 @@ export function Header({ collapsed, onToggleCollapse, onOpenMobileNav }: HeaderP
         <div className="hidden sm:block lg:hidden">
           <RoleSwitcher compact />
         </div>
+
+        {user && !isDemo ? (
+          <>
+            <span className="hidden max-w-40 truncate text-sm font-medium md:block" title={user.email}>
+              {user.name}
+            </span>
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Sign out">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/login">
+              <LogIn className="mr-1 h-4 w-4" />
+              <span className="hidden sm:inline">Sign in</span>
+            </Link>
+          </Button>
+        )}
 
         <Avatar className="h-9 w-9 border">
           <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
