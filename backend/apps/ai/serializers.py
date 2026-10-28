@@ -80,6 +80,7 @@ class AISessionSerializer(serializers.ModelSerializer):
 
 class AIInsightSerializer(serializers.ModelSerializer):
     module = serializers.CharField(source="session.module", read_only=True)
+    provider = serializers.CharField(source="session.provider", read_only=True)
     patient = serializers.UUIDField(source="session.patient_id", read_only=True, default=None)
     patient_name = serializers.CharField(
         source="session.patient.name", read_only=True, default=None)
@@ -88,7 +89,7 @@ class AIInsightSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AIInsight
-        fields = ("id", "session", "module", "patient", "patient_name", "kind",
+        fields = ("id", "session", "module", "provider", "patient", "patient_name", "kind",
                   "title", "content", "confidence", "requires_review",
                   "review_status", "reviewed_by", "requested_by_email",
                   "reviewed_at", "review_note", "created_at")

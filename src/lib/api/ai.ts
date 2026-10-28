@@ -83,6 +83,7 @@ export interface BackendAIInsight {
   id: string
   session: string
   module: string
+  provider: string
   patient: string | null
   patient_name: string | null
   kind: string
