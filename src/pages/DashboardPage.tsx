@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js'
 import { Doughnut } from 'react-chartjs-2'
@@ -32,7 +33,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatCard } from '@/components/shared/StatCard'
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge'
 import { formatBDT } from '@/data/billing'
-import { AI_DASHBOARD_STATS, MOCK_AI_ACTIVITY } from '@/data/ai'
+import { AIActivityStatusBadge } from '@/components/ai/AIBadges'
+import { listAIInsights, listNoShowPredictions, type BackendAIInsight } from '@/lib/api/ai'
 import { useAutomationStore } from '@/store/AutomationStore'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
@@ -80,6 +82,40 @@ export function DashboardPage() {
   const waitingQueue = queue.filter((q) => q.status === 'Waiting')
   const currentSerial = [...queue].reverse().find((q) => q.status === 'Called')?.serial ?? '—'
   const recentAutomationEvents = events.slice(0, 3)
+
+  // Live AI summary (AI-02): persisted insights + no-show predictions, no mock data.
+  const [aiInsights, setAiInsights] = useState<BackendAIInsight[]>([])
+  const [aiInsightTotal, setAiInsightTotal] = useState(0)
+  const [aiHighRisk, setAiHighRisk] = useState(0)
+  const [aiAtRiskAppointments, setAiAtRiskAppointments] = useState(0)
+  const [aiLoading, setAiLoading] = useState(true)
+  const [aiAvailable, setAiAvailable] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    Promise.all([listAIInsights({ page_size: 5 }), listNoShowPredictions()])
+      .then(([page, predictions]) => {
+        if (!active) return
+        setAiInsights(page.results)
+        setAiInsightTotal(page.count)
+        setAiHighRisk(predictions.filter((p) => p.riskLevel === 'High').length)
+        setAiAtRiskAppointments(predictions.filter((p) => p.riskLevel !== 'Low').length)
+        setAiAvailable(true)
+      })
+      .catch(() => {
+        if (!active) return
+        setAiInsights([])
+        setAiAvailable(false)
+      })
+      .finally(() => {
+        if (active) setAiLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const aiPendingReviews = aiInsights.filter((i) => i.review_status === 'Pending Review').length
 
   return (
     <div className="space-y-6">
@@ -185,10 +221,10 @@ export function DashboardPage() {
           </Link>
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Link to="/ai/symptom-checker"><StatCard icon={AlertTriangle} label="High-Risk Cases" value={AI_DASHBOARD_STATS.highRiskCases} hint="Mock triage flags" /></Link>
-          <Link to="/ai/prescription-advisory"><StatCard icon={FileText} label="Prescription Reviews" value={AI_DASHBOARD_STATS.prescriptionReviews} hint="Pending sign-off" /></Link>
-          <Link to="/ai/no-show-prediction"><StatCard icon={UserX} label="High-Risk Appointments" value={AI_DASHBOARD_STATS.predictedNoShows} hint="Likely no-shows" /></Link>
-          <Link to="/ai/activity"><StatCard icon={Sparkles} label="AI Queries" value={AI_DASHBOARD_STATS.clinicalQueries} hint="This week (mock)" /></Link>
+          <Link to="/ai/symptom-checker"><StatCard icon={AlertTriangle} label="High-Risk Cases" value={aiLoading ? '…' : aiHighRisk} hint="High no-show risk" /></Link>
+          <Link to="/ai/prescription-advisory"><StatCard icon={FileText} label="Prescription Reviews" value={aiLoading ? '…' : aiPendingReviews} hint="Pending sign-off (recent)" /></Link>
+          <Link to="/ai/no-show-prediction"><StatCard icon={UserX} label="High-Risk Appointments" value={aiLoading ? '…' : aiAtRiskAppointments} hint="Medium + high risk" /></Link>
+          <Link to="/ai/activity"><StatCard icon={Sparkles} label="AI Queries" value={aiLoading ? '…' : aiInsightTotal} hint="Persisted insights" /></Link>
         </div>
         <Card className="mt-3">
           <CardHeader className="flex flex-row items-center justify-between">
@@ -200,19 +236,33 @@ export function DashboardPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            <ul className="divide-y divide-border">
-              {MOCK_AI_ACTIVITY.slice(0, 3).map((a) => (
-                <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium">{a.action}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {a.module} · {a.user} · {a.timestamp}
-                    </p>
-                  </div>
-                  <Badge>{a.status}</Badge>
-                </li>
-              ))}
-            </ul>
+            {aiLoading ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Loading live AI activity…</p>
+            ) : !aiAvailable ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                AI service unavailable — open the AI hub to retry.
+              </p>
+            ) : aiInsights.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No AI activity yet — run an assessment from the AI hub.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {aiInsights.slice(0, 3).map((a) => (
+                  <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium">{a.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {a.module} · {a.requested_by_email ?? '—'} · {a.created_at.slice(0, 16).replace('T', ' ')}
+                      </p>
+                    </div>
+                    <AIActivityStatusBadge
+                      status={a.review_status === 'Reviewed' ? 'Reviewed' : a.review_status === 'Completed' ? 'Completed' : 'Pending Review'}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </section>
