@@ -1,6 +1,8 @@
 """AI module tests: triage, clinical Q&A, advisory, predictions, analytics, review."""
 
+import os
 from datetime import time, timedelta
+from unittest import mock
 
 from django.urls import reverse
 from django.utils import timezone
@@ -9,6 +11,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
 from apps.ai.models import AIInsight, AISession
+from apps.ai.providers import LocalRuleProvider, get_provider
 from apps.appointments.models import Appointment
 from apps.audit.models import AuditLog
 from apps.doctors.models import Doctor
@@ -225,3 +228,27 @@ class AiApiTests(APITestCase):
         response = self.client.get(
             reverse("ai-sessions-list"), {"module": "Symptom Checker"})
         self.assertEqual(len(response.json()["results"]), 1)
+
+    # -- provider selection + surfacing (AI-07/AI-09/AI-11) -------------------
+    def test_provider_defaults_to_local(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AI_PROVIDER", None)
+            self.assertIsInstance(get_provider(), LocalRuleProvider)
+            self.assertEqual(get_provider().name, "local")
+
+    def test_provider_unknown_name_falls_back_to_local(self):
+        with mock.patch.dict(os.environ, {"AI_PROVIDER": "unapproved-vendor"}):
+            provider = get_provider()
+            self.assertIsInstance(provider, LocalRuleProvider)
+            self.assertEqual(provider.name, "local")
+
+    def test_insight_responses_surface_provider(self):
+        self._auth(self.nurse)
+        insight_id = self.client.post(
+            reverse("ai-symptom-check"), self._triage_payload(),
+            format="json").json()["data"]["insight"]
+        listing = self.client.get(reverse("ai-insights-list"))
+        row = next(r for r in listing.json()["results"] if r["id"] == insight_id)
+        self.assertEqual(row["provider"], "local")
+        self.assertEqual(
+            AISession.objects.get(insights__pk=insight_id).provider, "local")
