@@ -16,10 +16,12 @@ export function AppointmentTable({
   appointments,
   onAction,
   onDelete,
+  canManage = false,
 }: {
   appointments: Appointment[]
-  onAction: (a: Appointment, action: 'confirm' | 'complete' | 'cancel') => void
-  onDelete: (a: Appointment) => void
+  onAction?: (id: string, action: 'confirm' | 'complete' | 'cancel') => void
+  onDelete?: (id: string) => void
+  canManage?: boolean
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -66,24 +68,26 @@ export function AppointmentTable({
                     <DropdownMenuItem asChild className="cursor-pointer">
                       <Link to={`/appointments/${a.id}`}><Eye className="mr-2 h-4 w-4" /> View</Link>
                     </DropdownMenuItem>
-                    {a.status === 'Pending' && (
-                      <DropdownMenuItem className="cursor-pointer" onClick={() => onAction(a, 'confirm')}>
+                    {canManage && onAction && a.status === 'Pending' && (
+                      <DropdownMenuItem className="cursor-pointer" onClick={() => onAction(a.id, 'confirm')}>
                         <CalendarClock className="mr-2 h-4 w-4" /> Confirm
                       </DropdownMenuItem>
                     )}
-                    {(a.status === 'Pending' || a.status === 'Confirmed') && (
-                      <DropdownMenuItem className="cursor-pointer" onClick={() => onAction(a, 'complete')}>
+                    {canManage && onAction && (a.status === 'Pending' || a.status === 'Confirmed') && (
+                      <DropdownMenuItem className="cursor-pointer" onClick={() => onAction(a.id, 'complete')}>
                         <CalendarClock className="mr-2 h-4 w-4" /> Mark as completed
                       </DropdownMenuItem>
                     )}
-                    {(a.status === 'Pending' || a.status === 'Confirmed') && (
-                      <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onAction(a, 'cancel')}>
+                    {canManage && onAction && (a.status === 'Pending' || a.status === 'Confirmed') && (
+                      <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onAction(a.id, 'cancel')}>
                         <CalendarClock className="mr-2 h-4 w-4" /> Cancel
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onDelete(a)}>
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete
-                    </DropdownMenuItem>
+                    {canManage && onDelete && (
+                      <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onDelete(a.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>

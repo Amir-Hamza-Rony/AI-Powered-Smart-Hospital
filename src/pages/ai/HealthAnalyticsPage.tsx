@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import { Bar, Doughnut, Line } from 'react-chartjs-2'
-import { ArrowLeft, FlaskConical, Pill, Stethoscope, Users } from 'lucide-react'
+import { ArrowLeft, FlaskConical, Stethoscope, Users } from 'lucide-react'
 import { AI_ANALYTICS_RANGES, type AIAnalyticsRange } from '@/data/ai'
 import { getAnalytics, type BackendAnalytics } from '@/lib/api/ai'
 import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
@@ -86,7 +86,7 @@ export function HealthAnalyticsPage() {
   const totalAppts = visits.appointments.reduce((a, b) => a + b, 0)
   const completionBase = completion.completed + completion.noShow + completion.cancelled + completion.pending
   const completionRate = completionBase > 0 ? Math.round((completion.completed / completionBase) * 100) : 0
-  const kpis = { totalVisits, totalAppts, completion: completionRate, avgWait: '—' }
+  const kpis = { totalVisits, totalAppts, completion: completionRate }
 
   return (
     <div className="space-y-4">
@@ -144,7 +144,6 @@ export function HealthAnalyticsPage() {
         <StatCard icon={Users} label="Patient Visits" value={kpis.totalVisits} hint="In selected period" />
         <StatCard icon={Stethoscope} label="Appointments" value={kpis.totalAppts} hint="Booked volume" />
         <StatCard icon={FlaskConical} label="Completion Rate" value={`${kpis.completion}%`} hint="Completed share" />
-        <StatCard icon={Pill} label="Avg. Waiting Time" value={kpis.avgWait} hint="Trend indicator" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAuth } from '@/components/auth/RequireAuth'
+import { RequireAuth, RequireRole } from '@/components/auth/RequireAuth'
+import type { MockRole } from '@/context/RoleContext'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { RegisterPage } from '@/pages/RegisterPage'
@@ -51,6 +52,10 @@ import { StockAlertsPage } from '@/pages/automation/StockAlertsPage'
 import { QueuePage } from '@/pages/automation/QueuePage'
 import { ActivityPage } from '@/pages/automation/ActivityPage'
 import { NotificationsPage } from '@/pages/notifications/NotificationsPage'
+
+const STAFF_ROLES: MockRole[] = ['admin', 'doctor', 'nurse', 'receptionist', 'pharmacist']
+const REVIEW_ROLES: MockRole[] = ['admin', 'doctor']
+const ADMIN_ROLES: MockRole[] = ['admin']
 
 /**
  * Phase 5 routing structure.
@@ -115,14 +120,14 @@ export function AppRoutes() {
         {/* Legacy Phase-2 placeholder paths keep working */}
         <Route path="/laboratory" element={<LabDashboardPage />} />
 
-        <Route path="/billing" element={<BillingDashboardPage />} />
-        <Route path="/billing/invoices" element={<InvoiceListPage />} />
-        <Route path="/billing/invoices/new" element={<CreateInvoicePage />} />
-        <Route path="/billing/invoices/:id" element={<InvoiceDetailPage />} />
-        <Route path="/billing/payments" element={<PaymentsPage />} />
-        <Route path="/billing/dues" element={<DuesPage />} />
-        <Route path="/billing/claims" element={<ClaimsPage />} />
-        <Route path="/billing/ledger" element={<LedgerPage />} />
+        <Route path="/billing" element={<RequireRole allowed={STAFF_ROLES}><BillingDashboardPage /></RequireRole>} />
+        <Route path="/billing/invoices" element={<RequireRole allowed={STAFF_ROLES}><InvoiceListPage /></RequireRole>} />
+        <Route path="/billing/invoices/new" element={<RequireRole allowed={STAFF_ROLES}><CreateInvoicePage /></RequireRole>} />
+        <Route path="/billing/invoices/:id" element={<RequireRole allowed={STAFF_ROLES}><InvoiceDetailPage /></RequireRole>} />
+        <Route path="/billing/payments" element={<RequireRole allowed={STAFF_ROLES}><PaymentsPage /></RequireRole>} />
+        <Route path="/billing/dues" element={<RequireRole allowed={STAFF_ROLES}><DuesPage /></RequireRole>} />
+        <Route path="/billing/claims" element={<RequireRole allowed={STAFF_ROLES}><ClaimsPage /></RequireRole>} />
+        <Route path="/billing/ledger" element={<RequireRole allowed={STAFF_ROLES}><LedgerPage /></RequireRole>} />
 
         <Route path="/ai" element={<AIDashboardPage />} />
         <Route path="/ai/symptom-checker" element={<SymptomCheckerPage />} />
@@ -130,7 +135,7 @@ export function AppRoutes() {
         <Route path="/ai/prescription-advisory" element={<PrescriptionAdvisoryPage />} />
         <Route path="/ai/no-show-prediction" element={<NoShowPredictionPage />} />
         <Route path="/ai/health-analytics" element={<HealthAnalyticsPage />} />
-        <Route path="/ai/activity" element={<AIActivityPage />} />
+        <Route path="/ai/activity" element={<RequireRole allowed={REVIEW_ROLES}><AIActivityPage /></RequireRole>} />
 
         <Route path="/automation" element={<AutomationDashboardPage />} />
         <Route path="/automation/reminders" element={<RemindersPage />} />
@@ -141,7 +146,7 @@ export function AppRoutes() {
 
         <Route path="/notifications" element={<NotificationsPage />} />
 
-        <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+        <Route path="/settings" element={<RequireRole allowed={ADMIN_ROLES}><PlaceholderPage title="Settings" /></RequireRole>} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

@@ -13,6 +13,9 @@ import type {
   Payment,
   LedgerTransaction,
   LedgerType,
+  Patient,
+  Doctor,
+  Appointment,
 } from '@/data/types'
 import type { BackendPrescription, BackendPrescriptionItem } from '@/lib/api/prescriptions'
 import type { BackendLabOrder, BackendLabOrderItem, BackendLabTest } from '@/lib/api/laboratory'
@@ -21,6 +24,9 @@ import type {
   BackendMedicine,
   BackendMedicineBatch,
 } from '@/lib/api/pharmacy'
+import type { BackendPatient } from '@/lib/api/patients'
+import type { BackendDoctor } from '@/lib/api/doctors'
+import type { BackendAppointment } from '@/lib/api/appointments'
 
 /**
  * Centralized backend (snake_case) → frontend (camelCase) mappers for Phase 9.
@@ -183,6 +189,83 @@ export function toDispensingRecord(record: BackendDispensingRecord): DispensingR
     prescribedQuantity: prescribed,
     dispensedQuantity: dispensed,
     status: record.status,
+  }
+}
+
+/* ---------------- Phase 2: patients/doctors/appointments ---------------- */
+
+export function toPatient(patient: BackendPatient): Patient {
+  return {
+    id: patient.id,
+    firstName: patient.first_name,
+    lastName: patient.last_name,
+    dob: patient.date_of_birth,
+    age: ageOn(patient.created_at, patient.date_of_birth),
+    gender: patient.gender as Patient['gender'],
+    bloodGroup: patient.blood_group as Patient['bloodGroup'],
+    phone: patient.phone,
+    email: patient.email,
+    nid: patient.nid ?? '',
+    address: patient.address,
+    emergencyContact: patient.emergency_contact ?? '',
+    emergencyPhone: patient.emergency_phone ?? '',
+    allergies: patient.allergies,
+    chronicConditions: patient.chronic_conditions,
+    surgeries: [],
+    currentMedications: [],
+    familyHistory: patient.medical_history ?? '',
+    notes: patient.notes ?? '',
+    status: patient.status,
+    lastVisit: patient.created_at,
+    totalVisits: 0,
+    upcomingAppointments: 0,
+    history: [],
+    prescriptions: [],
+    labReports: [],
+    documents: [],
+  }
+}
+
+export function toDoctor(doctor: BackendDoctor): Doctor {
+  return {
+    id: doctor.id,
+    name: doctor.name,
+    specialty: doctor.specialization,
+    qualification: doctor.qualification,
+    experienceYears: doctor.experience_years,
+    registrationNo: doctor.registration_no,
+    phone: doctor.phone,
+    email: doctor.email,
+    department: doctor.department,
+    room: doctor.room,
+    consultationFee: doctor.consultation_fee,
+    availability: doctor.availability,
+    status: doctor.status,
+    patientCount: 0,
+    rating: 0,
+    schedule: doctor.schedules.map((s) => ({
+      day: String(s.day),
+      available: s.is_available,
+      slots: s.slots,
+    })),
+  }
+}
+
+export function toAppointment(appointment: BackendAppointment): Appointment {
+  return {
+    id: appointment.id,
+    patientId: appointment.patient,
+    patientName: appointment.patient_name,
+    doctorId: appointment.doctor,
+    doctorName: appointment.doctor_name,
+    specialty: appointment.specialty,
+    date: appointment.date,
+    time: appointment.time,
+    type: appointment.type,
+    status: appointment.status,
+    reason: appointment.reason,
+    notes: appointment.notes,
+    createdAt: appointment.created_at,
   }
 }
 

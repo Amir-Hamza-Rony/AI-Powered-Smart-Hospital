@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, CalendarCheck, FileText, FlaskConical, HeartPulse, Pencil, Phone, Mail,
   MapPin, Pill, QrCode, Siren, Upload,
 } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
 import { useToast } from '@/context/ToastContext'
+import { useAuth } from '@/context/AuthContext'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { StatCard } from '@/components/shared/StatCard'
 import { PatientQRCard } from '@/components/patients/PatientQRCard'
 import { PatientMedicalTimeline } from '@/components/patients/PatientMedicalTimeline'
@@ -19,26 +20,74 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import type { Appointment } from '@/data/types'
+import type { BackendAppointment } from '@/lib/api/appointments'
+import { listAppointments } from '@/lib/api/appointments'
+import type { BackendPatient } from '@/lib/api/patients'
+import { getPatient, deletePatient } from '@/lib/api/patients'
+import { toPatient } from '@/lib/api/adapters'
+import { toAppointment } from '@/lib/api/adapters'
+import { useApiDetail } from '@/lib/api/hooks'
+import { canManagePatients } from '@/lib/api/hooks'
 
 export function PatientDetailPage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const { getPatient, deletePatient, appointments } = useHospitalStore()
-  const { success } = useToast()
+  const { success, error } = useToast()
+  const canManage = canManagePatients(user?.role ?? null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const patient = id ? getPatient(id) : undefined
-  if (!patient) {
+  const patientQuery = useApiDetail<BackendPatient | null>(
+    id ? () => getPatient(id) : () => Promise.resolve(null),
+    [id],
+  )
+  const patient = patientQuery.data ? toPatient(patientQuery.data) : undefined
+
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [apptsLoading, setApptsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    let active = true
+    setApptsLoading(true)
+    listAppointments({ patient: id, page_size: 50 })
+      .then((page: { results: BackendAppointment[] }) => {
+        if (active) setAppointments(page.results.map(toAppointment))
+      })
+      .catch(() => {
+        if (active) setAppointments([])
+      })
+      .finally(() => {
+        if (active) setApptsLoading(false)
+      })
+    return () => { active = false }
+  }, [id])
+
+  if (!id) {
     return (
       <EmptyState
         title="Patient not found"
-        description="This patient ID does not exist in the mock data."
+        description="No patient ID provided."
         action={<Button asChild><Link to="/patients">Back to Patients</Link></Button>}
       />
     )
   }
 
-  const patientAppointments = appointments.filter((a) => a.patientId === patient.id)
+  if (patientQuery.errorStatus === 403) return <ApiForbiddenState message={null} />
+  if (patientQuery.error) return <ApiErrorState message={patientQuery.error} onRetry={() => patientQuery.refresh()} />
+  if (patientQuery.loading || !patient) return <ApiLoading />
+
+  const handleDelete = async () => {
+    if (!canManage) return
+    try {
+      await deletePatient(id)
+      success('Patient deleted', `${patient.firstName} ${patient.lastName} removed.`)
+      navigate('/patients')
+    } catch (err) {
+      error('Delete failed', err instanceof Error ? err.message : 'Request failed.')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -51,15 +100,14 @@ export function PatientDetailPage() {
         description={`${patient.id} · ${patient.age}y · ${patient.gender} · ${patient.bloodGroup}`}
         actions={
           <>
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild disabled={!canManage}>
               <Link to={`/patients/${patient.id}/edit`}><Pencil className="mr-1 h-4 w-4" /> Edit</Link>
             </Button>
-            <Button variant="destructive" onClick={() => setConfirmDelete(true)}>Delete</Button>
+            <Button variant="destructive" onClick={() => setConfirmDelete(true)} disabled={!canManage}>Delete</Button>
           </>
         }
       />
 
-      {/* Profile header */}
       <Card>
         <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:p-5">
           <Avatar className="h-20 w-20 shrink-0">
@@ -84,7 +132,6 @@ export function PatientDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Overview cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard icon={HeartPulse} label="Total Visits" value={patient.totalVisits} />
         <StatCard icon={CalendarCheck} label="Upcoming Appointments" value={patient.upcomingAppointments} />
@@ -130,16 +177,18 @@ export function PatientDetailPage() {
 
         <TabsContent value="appointments">
           <Card>
-            <CardHeader><CardTitle className="text-base">Appointments ({patientAppointments.length})</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Appointments ({appointments.length})</CardTitle></CardHeader>
             <CardContent>
-              {patientAppointments.length === 0 ? (
+              {apptsLoading ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Loading appointments…</p>
+              ) : appointments.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No appointments for this patient.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow><TableHead>ID</TableHead><TableHead>Doctor</TableHead><TableHead>Date</TableHead><TableHead>Time</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {patientAppointments.map((a) => (
+                      {appointments.map((a) => (
                         <TableRow key={a.id}>
                           <TableCell><Link to={`/appointments/${a.id}`} className="font-medium text-primary hover:underline">{a.id}</Link></TableCell>
                           <TableCell>{a.doctorName}</TableCell>
@@ -244,14 +293,10 @@ export function PatientDetailPage() {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={`Delete ${patient.firstName} ${patient.lastName}?`}
-        description="This removes the patient from the local mock list only."
+        description="This removes the patient from the registry. This action cannot be undone."
         confirmLabel="Delete"
         destructive
-        onConfirm={() => {
-          deletePatient(patient.id)
-          success('Patient deleted', `${patient.id} removed from mock state.`)
-          navigate('/patients')
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   )

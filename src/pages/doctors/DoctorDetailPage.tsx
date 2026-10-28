@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Banknote, DoorOpen, Mail, Pencil, Phone, ShieldCheck, Star, Users } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
 import { useToast } from '@/context/ToastContext'
+import { useAuth } from '@/context/AuthContext'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { StatCard } from '@/components/shared/StatCard'
 import { DoctorSchedule } from '@/components/doctors/DoctorSchedule'
 import { doctorInitials } from '@/components/doctors/DoctorCard'
@@ -15,27 +16,89 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import type { Appointment } from '@/data/types'
+import type { Patient } from '@/data/types'
+import type { BackendDoctor } from '@/lib/api/doctors'
+import { getDoctor, deleteDoctor } from '@/lib/api/doctors'
+import { listAppointments } from '@/lib/api/appointments'
+import { listPatients } from '@/lib/api/patients'
+import { toDoctor } from '@/lib/api/adapters'
+import { toPatient } from '@/lib/api/adapters'
+import { toAppointment } from '@/lib/api/adapters'
+import { useApiDetail } from '@/lib/api/hooks'
+import { canManageDoctors } from '@/lib/api/hooks'
 
 export function DoctorDetailPage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const { getDoctor, deleteDoctor, appointments, patients } = useHospitalStore()
-  const { success } = useToast()
+  const { success, error } = useToast()
+  const canManage = canManageDoctors(user?.role ?? null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const doctor = id ? getDoctor(id) : undefined
-  if (!doctor) {
+  const doctorQuery = useApiDetail<BackendDoctor | null>(
+    id ? () => getDoctor(id) : () => Promise.resolve(null),
+    [id],
+  )
+  const doctor = doctorQuery.data ? toDoctor(doctorQuery.data) : undefined
+
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [loadingRel, setLoadingRel] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    let active = true
+    setLoadingRel(true)
+    Promise.all([
+      listAppointments({ doctor: id, page_size: 50 }),
+      listPatients({ page_size: 50 }),
+    ])
+      .then(([apptPage, patientPage]) => {
+        if (active) {
+          setAppointments(apptPage.results.map(toAppointment))
+          setPatients(patientPage.results.map(toPatient))
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAppointments([])
+          setPatients([])
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingRel(false)
+      })
+    return () => { active = false }
+  }, [id])
+
+  if (!id) {
     return (
       <EmptyState
         title="Doctor not found"
-        description="This doctor ID does not exist in the mock data."
+        description="No doctor ID provided."
         action={<Button asChild><Link to="/doctors">Back to Doctors</Link></Button>}
       />
     )
   }
 
-  const doctorAppointments = appointments.filter((a) => a.doctorId === doctor.id)
+  if (doctorQuery.errorStatus === 403) return <ApiForbiddenState message={null} />
+  if (doctorQuery.error) return <ApiErrorState message={doctorQuery.error} onRetry={() => doctorQuery.refresh()} />
+  if (doctorQuery.loading || !doctor) return <ApiLoading />
+
+  const doctorAppointments = appointments
   const recentPatients = patients.filter((p) => doctorAppointments.some((a) => a.patientId === p.id)).slice(0, 5)
+
+  const handleDelete = async () => {
+    if (!canManage) return
+    try {
+      await deleteDoctor(id)
+      success('Doctor deleted', `${doctor.name} removed.`)
+      navigate('/doctors')
+    } catch (err) {
+      error('Delete failed', err instanceof Error ? err.message : 'Request failed.')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -48,10 +111,10 @@ export function DoctorDetailPage() {
         description={`${doctor.specialty} · ${doctor.id}`}
         actions={
           <>
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild disabled={!canManage}>
               <Link to={`/doctors/${doctor.id}/edit`}><Pencil className="mr-1 h-4 w-4" /> Edit</Link>
             </Button>
-            <Button asChild>
+            <Button asChild disabled={!canManage}>
               <Link to={`/appointments/new?doctor=${doctor.id}`}>Schedule</Link>
             </Button>
           </>
@@ -128,7 +191,9 @@ export function DoctorDetailPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">Appointments ({doctorAppointments.length})</CardTitle></CardHeader>
             <CardContent>
-              {doctorAppointments.length === 0 ? (
+              {loadingRel ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Loading appointments…</p>
+              ) : doctorAppointments.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No appointments assigned.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -156,8 +221,10 @@ export function DoctorDetailPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">Recent Patients</CardTitle></CardHeader>
             <CardContent>
-              {recentPatients.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">No linked patients in mock data.</p>
+              {loadingRel ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Loading patients…</p>
+              ) : recentPatients.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">No linked patients.</p>
               ) : (
                 <div className="space-y-2">
                   {recentPatients.map((p) => (
@@ -191,8 +258,8 @@ export function DoctorDetailPage() {
       </Tabs>
 
       <div className="flex justify-end">
-        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(true)}>
-          Delete doctor (mock)
+        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(true)} disabled={!canManage}>
+          Delete doctor
         </Button>
       </div>
 
@@ -200,14 +267,10 @@ export function DoctorDetailPage() {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={`Delete ${doctor.name}?`}
-        description="This removes the doctor from the local mock roster only."
+        description="This removes the doctor from the roster. This action cannot be undone."
         confirmLabel="Delete"
         destructive
-        onConfirm={() => {
-          deleteDoctor(doctor.id)
-          success('Doctor deleted', `${doctor.id} removed from mock state.`)
-          navigate('/doctors')
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   )

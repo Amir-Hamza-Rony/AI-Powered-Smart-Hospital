@@ -16,7 +16,15 @@ export function doctorInitials(name: string) {
   return name.replace(/^Dr\.\s*/, '').split(' ').map((w) => w.charAt(0)).slice(0, 2).join('').toUpperCase()
 }
 
-export function DoctorCard({ doctor, onDelete }: { doctor: Doctor; onDelete: (d: Doctor) => void }) {
+export function DoctorCard({
+  doctor,
+  onDelete,
+  canManage = false,
+}: {
+  doctor: Doctor
+  onDelete?: (id: string) => void
+  canManage?: boolean
+}) {
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
@@ -46,15 +54,21 @@ export function DoctorCard({ doctor, onDelete }: { doctor: Doctor; onDelete: (d:
               <DropdownMenuItem asChild className="cursor-pointer">
                 <Link to={`/doctors/${doctor.id}`}><Eye className="mr-2 h-4 w-4" /> View Profile</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to={`/doctors/${doctor.id}/edit`}><Pencil className="mr-2 h-4 w-4" /> Edit</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to={`/appointments/new?doctor=${doctor.id}`}><CalendarPlus className="mr-2 h-4 w-4" /> Schedule</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onDelete(doctor)}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
-              </DropdownMenuItem>
+              {canManage && (
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to={`/doctors/${doctor.id}/edit`}><Pencil className="mr-2 h-4 w-4" /> Edit</Link>
+                </DropdownMenuItem>
+              )}
+              {canManage && (
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to={`/appointments/new?doctor=${doctor.id}`}><CalendarPlus className="mr-2 h-4 w-4" /> Schedule</Link>
+                </DropdownMenuItem>
+              )}
+              {canManage && onDelete && (
+                <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onDelete(doctor.id)}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -69,9 +83,11 @@ export function DoctorCard({ doctor, onDelete }: { doctor: Doctor; onDelete: (d:
           <Button size="sm" variant="outline" asChild className="flex-1">
             <Link to={`/doctors/${doctor.id}`}>View Profile</Link>
           </Button>
-          <Button size="sm" asChild className="flex-1">
-            <Link to={`/appointments/new?doctor=${doctor.id}`}>Schedule</Link>
-          </Button>
+          {canManage && (
+            <Button size="sm" asChild className="flex-1">
+              <Link to={`/appointments/new?doctor=${doctor.id}`}>Schedule</Link>
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

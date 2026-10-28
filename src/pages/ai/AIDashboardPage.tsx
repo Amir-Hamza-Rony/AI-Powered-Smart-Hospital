@@ -19,8 +19,8 @@ import { StatCard } from '@/components/shared/StatCard'
 import { AIActivityStatusBadge, AIStatusBadge } from '@/components/ai/AIBadges'
 import { AIDisclaimer } from '@/components/ai/AIDisclaimer'
 import { ApiLoading } from '@/components/shared/ApiState'
-import { listAIInsights, listNoShowPredictions } from '@/lib/api/ai'
-import type { BackendAIInsight } from '@/lib/api/ai'
+import { listAIInsights, listAISessions, listNoShowPredictions } from '@/lib/api/ai'
+import type { BackendAIInsight, BackendAISession } from '@/lib/api/ai'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -77,16 +77,22 @@ function insightStatus(status: string): 'Completed' | 'Reviewed' | 'Pending Revi
 
 export function AIDashboardPage() {
   const [insights, setInsights] = useState<BackendAIInsight[]>([])
+  const [sessions, setSessions] = useState<BackendAISession[]>([])
   const [highRisk, setHighRisk] = useState(0)
   const [predictedNoShows, setPredictedNoShows] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
-    Promise.all([listAIInsights({ page_size: 5 }), listNoShowPredictions()])
-      .then(([insightsPage, predictions]) => {
+    Promise.all([
+      listAIInsights({ page_size: 5 }),
+      listAISessions({ page_size: 5 }),
+      listNoShowPredictions(),
+    ])
+      .then(([insightsPage, sessionsPage, predictions]) => {
         if (!active) return
         setInsights(insightsPage.results)
+        setSessions(sessionsPage.results)
         setHighRisk(predictions.filter((p) => p.riskLevel === 'High').length)
         setPredictedNoShows(
           predictions.filter((p) => p.riskLevel === 'High' || p.riskLevel === 'Medium').length,
@@ -95,6 +101,7 @@ export function AIDashboardPage() {
       .catch(() => {
         if (active) {
           setInsights([])
+          setSessions([])
         }
       })
       .finally(() => {
@@ -186,6 +193,43 @@ export function AIDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardCheck className="h-4 w-4 text-primary" aria-hidden /> Recent AI Sessions
+          </CardTitle>
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/ai/activity">View all</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <ApiLoading label="Loading sessions…" />
+          ) : sessions.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              No AI sessions yet — run an assessment to populate this feed.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {sessions.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm border-b border-border last:border-0">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{s.module}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {s.requested_by_email ?? '—'} · provider: {s.provider}
+                      {s.patient_name ? ` · patient: ${s.patient_name}` : ''}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground whitespace-nowrap">
+                    {s.created_at.slice(0, 16).replace('T', ' ')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <AIDisclaimer variant="general" />
     </div>

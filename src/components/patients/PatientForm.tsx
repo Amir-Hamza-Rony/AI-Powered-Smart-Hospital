@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { BloodGroup, Gender, Patient, PatientStatus } from '@/data/types'
 import { BLOOD_GROUPS } from '@/data/patients'
-import { nextId, useHospitalStore } from '@/store/HospitalStore'
 import { useToast } from '@/context/ToastContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { createPatient, updatePatient, type PatientInput } from '@/lib/api/patients'
 
 export interface PatientFormValues {
   firstName: string
@@ -50,12 +50,41 @@ function splitList(v: string) {
   return v.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-export function PatientForm({ existing }: { existing?: Patient }) {
+function toPatientInput(values: PatientFormValues): PatientInput {
+  return {
+    first_name: values.firstName,
+    last_name: values.lastName,
+    date_of_birth: values.dob,
+    gender: values.gender,
+    blood_group: values.bloodGroup,
+    phone: values.phone,
+    email: values.email,
+    nid: values.nid || undefined,
+    address: values.address,
+    emergency_contact: values.emergencyContact || undefined,
+    emergency_phone: values.emergencyPhone || undefined,
+    allergies: splitList(values.allergies),
+    chronic_conditions: splitList(values.chronicConditions),
+    medical_history: undefined,
+    notes: values.notes || undefined,
+    status: values.status,
+  }
+}
+
+export interface PatientFormProps {
+  mode: 'add' | 'edit'
+  patient?: Patient
+  onSave?: () => void
+}
+
+export function PatientForm({ mode, patient, onSave }: PatientFormProps) {
   const navigate = useNavigate()
-  const { patients, addPatient, updatePatient } = useHospitalStore()
-  const { success } = useToast()
-  const [values, setValues] = useState<PatientFormValues>(() => toValues(existing))
+  const { success, error } = useToast()
+  const [values, setValues] = useState<PatientFormValues>(() => toValues(patient))
   const [errors, setErrors] = useState<Partial<Record<keyof PatientFormValues, string>>>({})
+  const [submitting, setSubmitting] = useState(false)
+
+  const isEdit = mode === 'edit'
 
   const set = (k: keyof PatientFormValues, v: string) => {
     setValues((prev) => ({ ...prev, [k]: v }))
@@ -75,32 +104,27 @@ export function PatientForm({ existing }: { existing?: Patient }) {
     return Object.keys(e).length === 0
   }
 
-  const onSubmit = (ev: React.FormEvent) => {
+  const onSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!validate()) return
-    if (existing) {
-      updatePatient(existing.id, {
-        ...values,
-        allergies: splitList(values.allergies),
-        chronicConditions: splitList(values.chronicConditions),
-      } as Partial<Patient>)
-      success('Patient updated', `${values.firstName} ${values.lastName} saved to mock state.`)
-      navigate(`/patients/${existing.id}`)
-    } else {
-      const id = nextId('PAT', patients.map((p) => p.id))
-      const age = values.dob ? new Date().getFullYear() - new Date(values.dob).getFullYear() : 0
-      addPatient({
-        id, ...values,
-        age,
-        allergies: splitList(values.allergies),
-        chronicConditions: splitList(values.chronicConditions),
-        surgeries: [], currentMedications: [],
-        familyHistory: 'Not recorded yet.',
-        totalVisits: 0, upcomingAppointments: 0, lastVisit: '—',
-        history: [], prescriptions: [], labReports: [], documents: [],
-      } as Patient)
-      success('Patient added', `${values.firstName} ${values.lastName} (${id}) saved to mock state.`)
-      navigate('/patients')
+    setSubmitting(true)
+    try {
+      const input = toPatientInput(values)
+      if (isEdit && patient) {
+        await updatePatient(patient.id, input)
+        success('Patient updated', `${values.firstName} ${values.lastName} saved.`)
+        onSave?.()
+        navigate(`/patients/${patient.id}`)
+      } else {
+        await createPatient(input)
+        success('Patient added', `${values.firstName} ${values.lastName} registered.`)
+        onSave?.()
+        navigate('/patients')
+      }
+    } catch (err) {
+      error('Save failed', err instanceof Error ? err.message : 'Request failed.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -170,8 +194,8 @@ export function PatientForm({ existing }: { existing?: Patient }) {
         </Card>
 
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
-          <Button type="submit">{existing ? 'Save Changes' : 'Add Patient'}</Button>
+          <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>Cancel</Button>
+          <Button type="submit" disabled={submitting}>{isEdit ? 'Save Changes' : 'Add Patient'}</Button>
         </div>
       </div>
     </form>

@@ -252,3 +252,73 @@ class AiApiTests(APITestCase):
         self.assertEqual(row["provider"], "local")
         self.assertEqual(
             AISession.objects.get(insights__pk=insight_id).provider, "local")
+
+    # -- COMPLETED lifecycle transition (AI-04) -------------------------------
+    def test_complete_transition_from_reviewed(self):
+        self._auth(self.nurse)
+        insight_id = self.client.post(
+            reverse("ai-symptom-check"), self._triage_payload(),
+            format="json").json()["data"]["insight"]
+        self._auth(self.doctor_user)
+        self.client.post(
+            reverse("ai-insights-review", args=[insight_id]),
+            {"note": "Reviewed."}, format="json")
+        completed = self.client.post(
+            reverse("ai-insights-complete", args=[insight_id]), {},
+            format="json")
+        self.assertEqual(completed.status_code, status.HTTP_200_OK)
+        self.assertEqual(completed.json()["data"]["review_status"], "Completed")
+        self.assertTrue(AIInsight.objects.filter(
+            pk=insight_id, review_status="Completed").exists())
+
+    def test_complete_blocks_unreviewed(self):
+        self._auth(self.nurse)
+        insight_id = self.client.post(
+            reverse("ai-symptom-check"), self._triage_payload(),
+            format="json").json()["data"]["insight"]
+        self._auth(self.doctor_user)
+        # Cannot complete a Pending Review insight directly.
+        self.assertEqual(self.client.post(
+            reverse("ai-insights-complete", args=[insight_id]), {},
+            format="json").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_complete_requires_doctor_or_admin(self):
+        self._auth(self.nurse)
+        insight_id = self.client.post(
+            reverse("ai-symptom-check"), self._triage_payload(),
+            format="json").json()["data"]["insight"]
+        self._auth(self.receptionist)
+        self.assertEqual(self.client.post(
+            reverse("ai-insights-complete", args=[insight_id]), {},
+            format="json").status_code, status.HTTP_403_FORBIDDEN)
+
+    # -- read-only endpoint permissions (AI-11) --------------------------------
+    def test_patient_blocked_from_noshow(self):
+        self._auth(self.patient_user)
+        self.assertEqual(
+            self.client.get(reverse("ai-noshow-predictions")).status_code,
+            status.HTTP_403_FORBIDDEN)
+
+    def test_patient_blocked_from_analytics(self):
+        self._auth(self.patient_user)
+        self.assertEqual(
+            self.client.get(reverse("ai-analytics")).status_code,
+            status.HTTP_403_FORBIDDEN)
+
+    def test_patient_blocked_from_sessions(self):
+        self._auth(self.patient_user)
+        self.assertEqual(
+            self.client.get(reverse("ai-sessions-list")).status_code,
+            status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_blocked_from_noshow(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(
+            self.client.get(reverse("ai-noshow-predictions")).status_code,
+            status.HTTP_401_UNAUTHORIZED)
+
+    def test_unauthenticated_blocked_from_analytics(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(
+            self.client.get(reverse("ai-analytics")).status_code,
+            status.HTTP_401_UNAUTHORIZED)

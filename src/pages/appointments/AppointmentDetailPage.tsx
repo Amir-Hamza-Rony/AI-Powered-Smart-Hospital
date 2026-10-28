@@ -1,37 +1,87 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, Clock, User } from 'lucide-react'
-import { useHospitalStore } from '@/store/HospitalStore'
 import { useToast } from '@/context/ToastContext'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { AppointmentStatusBadge } from '@/components/appointments/AppointmentStatusBadge'
 import { AppointmentTimeline } from '@/components/appointments/AppointmentTimeline'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { BackendAppointment } from '@/lib/api/appointments'
+import {
+  getAppointment,
+  deleteAppointment,
+  confirmAppointment,
+  completeAppointment,
+  cancelAppointment,
+} from '@/lib/api/appointments'
+import { toAppointment } from '@/lib/api/adapters'
+import { useApiDetail } from '@/lib/api/hooks'
+import { canManageAppointments } from '@/lib/api/hooks'
+import { useAuth } from '@/context/AuthContext'
 
 export function AppointmentDetailPage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const { getAppointment, setAppointmentStatus, deleteAppointment } = useHospitalStore()
-  const { success } = useToast()
+  const { success, error } = useToast()
+  const canManage = canManageAppointments(user?.role ?? null)
   const [confirmTarget, setConfirmTarget] = useState<'Confirmed' | 'Completed' | 'Cancelled' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const appointment = id ? getAppointment(id) : undefined
-  if (!appointment) {
+  const apptQuery = useApiDetail<BackendAppointment>(
+    id ? () => getAppointment(id) : () => Promise.reject(new Error('No appointment ID')),
+    [id],
+  )
+  const appointment = apptQuery.data ? toAppointment(apptQuery.data) : undefined
+
+  if (!id) {
     return (
       <EmptyState
         title="Appointment not found"
-        description="This appointment ID does not exist in the mock data."
+        description="No appointment ID provided."
         action={<Button asChild><Link to="/appointments">Back to Appointments</Link></Button>}
       />
     )
   }
 
+  if (apptQuery.errorStatus === 403) return <ApiForbiddenState message={null} />
+  if (apptQuery.error) return <ApiErrorState message={apptQuery.error} onRetry={() => apptQuery.refresh()} />
+  if (apptQuery.loading || !appointment) return <ApiLoading />
+
   const actionable = appointment.status === 'Pending' || appointment.status === 'Confirmed'
+
+  const handleStatusChange = async (target: 'Confirmed' | 'Completed' | 'Cancelled') => {
+    if (!canManage) return
+    try {
+      const fn = {
+        Confirmed: confirmAppointment,
+        Completed: completeAppointment,
+        Cancelled: cancelAppointment,
+      }[target]
+      await fn(id)
+      setConfirmTarget(null)
+      apptQuery.refresh()
+      success(`Appointment ${target.toLowerCase()}`, `${appointment.id} updated.`)
+    } catch (err) {
+      error('Status change failed', err instanceof Error ? err.message : 'Request failed.')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!canManage) return
+    try {
+      await deleteAppointment(id)
+      success('Appointment deleted', `${appointment.id} removed.`)
+      navigate('/appointments')
+    } catch (err) {
+      error('Delete failed', err instanceof Error ? err.message : 'Request failed.')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -94,51 +144,44 @@ export function AppointmentDetailPage() {
         <CardContent><AppointmentTimeline status={appointment.status} /></CardContent>
       </Card>
 
-      {actionable && (
+      {actionable && canManage && (
         <div className="flex flex-wrap gap-2">
           {appointment.status === 'Pending' && (
-            <Button onClick={() => setConfirmTarget('Confirmed')}>Confirm</Button>
+            <Button onClick={() => handleStatusChange('Confirmed')}>Confirm</Button>
           )}
-          <Button variant="outline" onClick={() => success('Reschedule (mock)', 'Rescheduling UI is frontend-only; edit date via a future iteration.')}>
+          <Button variant="outline" onClick={() => success('Reschedule', 'Rescheduling is available via edit in a future iteration.')}>
             Reschedule
           </Button>
-          <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setConfirmTarget('Cancelled')}>
+          <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => handleStatusChange('Cancelled')}>
             Cancel
           </Button>
-          <Button variant="secondary" onClick={() => setConfirmTarget('Completed')}>Mark Completed</Button>
+          <Button variant="secondary" onClick={() => handleStatusChange('Completed')}>Mark Completed</Button>
           <Button variant="ghost" size="sm" className="ml-auto text-destructive hover:text-destructive" onClick={() => setConfirmDelete(true)}>
             Delete
           </Button>
         </div>
       )}
 
-      <ConfirmDialog
-        open={confirmTarget !== null}
-        onOpenChange={(o) => !o && setConfirmTarget(null)}
-        title={`${confirmTarget ?? ''} appointment ${appointment.id}?`}
-        description="Status changes update the local mock list only."
-        confirmLabel={confirmTarget ?? 'Confirm'}
-        destructive={confirmTarget === 'Cancelled'}
-        onConfirm={() => {
-          if (confirmTarget) {
-            setAppointmentStatus(appointment.id, confirmTarget)
-            success(`Appointment ${confirmTarget.toLowerCase()}`, `${appointment.id} updated in mock state.`)
-          }
-        }}
-      />
+      {confirmTarget && (
+        <ConfirmDialog
+          open={true}
+          onOpenChange={(o) => { if (!o) setConfirmTarget(null) }}
+          title={`${confirmTarget} appointment ${appointment.id}?`}
+          description="This updates the backend record."
+          confirmLabel={confirmTarget}
+          destructive={confirmTarget === 'Cancelled'}
+          onConfirm={() => handleStatusChange(confirmTarget)}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={`Delete ${appointment.id}?`}
-        description="This removes the appointment from the local mock list only."
+        description="This removes the appointment record. This action cannot be undone."
         confirmLabel="Delete"
         destructive
-        onConfirm={() => {
-          deleteAppointment(appointment.id)
-          success('Appointment deleted', `${appointment.id} removed from mock state.`)
-          navigate('/appointments')
-        }}
+        onConfirm={handleDelete}
       />
     </div>
   )

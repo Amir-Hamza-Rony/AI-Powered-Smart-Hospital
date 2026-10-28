@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Doctor, DoctorAvailability, DoctorStatus } from '@/data/types'
-import { nextId, useHospitalStore } from '@/store/HospitalStore'
+import type { DoctorAvailability, DoctorStatus } from '@/data/types'
 import { useToast } from '@/context/ToastContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { createDoctor, updateDoctor, type DoctorInput } from '@/lib/api/doctors'
 
 export interface DoctorFormValues {
   name: string
@@ -30,26 +30,50 @@ const EMPTY: DoctorFormValues = {
   availability: 'Available', status: 'Active',
 }
 
-function toValues(d?: Doctor): DoctorFormValues {
+function toValues(d?: DoctorFormValues | { name: string; specialty: string; qualification: string; experienceYears: number; registrationNo: string; phone: string; email: string; department: string; room: string; consultationFee: number; availability: DoctorAvailability; status: DoctorStatus }): DoctorFormValues {
   if (!d) return EMPTY
   return {
     name: d.name, specialty: d.specialty, qualification: d.qualification,
-    experienceYears: String(d.experienceYears), registrationNo: d.registrationNo,
+    experienceYears: typeof d.experienceYears === 'number' ? String(d.experienceYears) : d.experienceYears,
+    registrationNo: d.registrationNo,
     phone: d.phone, email: d.email, department: d.department, room: d.room,
-    consultationFee: String(d.consultationFee), availability: d.availability, status: d.status,
+    consultationFee: typeof d.consultationFee === 'number' ? String(d.consultationFee) : d.consultationFee,
+    availability: d.availability, status: d.status,
   }
 }
 
-const BLANK_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => ({
-  day, available: day !== 'Friday' && day !== 'Sunday', slots: [] as string[],
-}))
+function toDoctorInput(values: DoctorFormValues): DoctorInput {
+  return {
+    first_name: values.name.split(' ').slice(0, -1).join(' ') || values.name,
+    last_name: values.name.split(' ').pop() || '',
+    specialization: values.specialty,
+    qualification: values.qualification,
+    experience_years: Number(values.experienceYears) || 0,
+    registration_no: values.registrationNo,
+    phone: values.phone,
+    email: values.email,
+    department: values.department,
+    room: values.room,
+    consultation_fee: Number(values.consultationFee) || 0,
+    availability: values.availability,
+    status: values.status,
+  }
+}
 
-export function DoctorForm({ existing }: { existing?: Doctor }) {
+export interface DoctorFormProps {
+  mode: 'add' | 'edit'
+  doctor?: { id: string; name: string; specialty: string; qualification: string; experienceYears: number; registrationNo: string; phone: string; email: string; department: string; room: string; consultationFee: number; availability: DoctorAvailability; status: DoctorStatus }
+  onSave?: () => void
+}
+
+export function DoctorForm({ mode, doctor, onSave }: DoctorFormProps) {
   const navigate = useNavigate()
-  const { doctors, addDoctor, updateDoctor } = useHospitalStore()
-  const { success } = useToast()
-  const [values, setValues] = useState<DoctorFormValues>(() => toValues(existing))
+  const { success, error } = useToast()
+  const [values, setValues] = useState<DoctorFormValues>(() => toValues(doctor))
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({})
+  const [submitting, setSubmitting] = useState(false)
+
+  const isEdit = mode === 'edit'
 
   const set = (k: keyof DoctorFormValues, v: string) => {
     setValues((prev) => ({ ...prev, [k]: v }))
@@ -69,27 +93,27 @@ export function DoctorForm({ existing }: { existing?: Doctor }) {
     return Object.keys(e).length === 0
   }
 
-  const onSubmit = (ev: React.FormEvent) => {
+  const onSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!validate()) return
-    if (existing) {
-      updateDoctor(existing.id, {
-        ...values,
-        experienceYears: Number(values.experienceYears) || existing.experienceYears,
-        consultationFee: Number(values.consultationFee) || existing.consultationFee,
-      } as Partial<Doctor>)
-      success('Doctor updated', `${values.name} saved to mock state.`)
-      navigate(`/doctors/${existing.id}`)
-    } else {
-      const id = nextId('DOC', doctors.map((d) => d.id))
-      addDoctor({
-        id, ...values,
-        experienceYears: Number(values.experienceYears) || 0,
-        consultationFee: Number(values.consultationFee) || 0,
-        patientCount: 0, rating: 5.0, schedule: BLANK_WEEK,
-      } as Doctor)
-      success('Doctor added', `${values.name} (${id}) saved to mock state.`)
-      navigate('/doctors')
+    setSubmitting(true)
+    try {
+      const input = toDoctorInput(values)
+      if (isEdit && doctor) {
+        await updateDoctor(doctor.id, input)
+        success('Doctor updated', `${values.name} saved.`)
+        onSave?.()
+        navigate(`/doctors/${doctor.id}`)
+      } else {
+        await createDoctor(input)
+        success('Doctor added', `${values.name} registered.`)
+        onSave?.()
+        navigate('/doctors')
+      }
+    } catch (err) {
+      error('Save failed', err instanceof Error ? err.message : 'Request failed.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -142,8 +166,8 @@ export function DoctorForm({ existing }: { existing?: Doctor }) {
         </Card>
         <p className="text-xs text-muted-foreground">Weekly schedule uses a default template for new doctors and can be refined in a later phase.</p>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
-          <Button type="submit">{existing ? 'Save Changes' : 'Add Doctor'}</Button>
+          <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>Cancel</Button>
+          <Button type="submit" disabled={submitting}>{isEdit ? 'Save Changes' : 'Add Doctor'}</Button>
         </div>
       </div>
     </form>

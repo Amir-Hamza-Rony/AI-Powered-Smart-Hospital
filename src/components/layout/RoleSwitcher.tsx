@@ -1,7 +1,6 @@
 import { ChevronsUpDown, Check } from 'lucide-react'
 import { MOCK_ROLES, useRole } from '@/context/RoleContext'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -60,11 +59,6 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <div className="px-2 py-1.5">
-          <Badge variant="secondary" className="text-[11px]">
-            UI-only — no backend auth yet
-          </Badge>
-        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

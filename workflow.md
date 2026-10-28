@@ -65,7 +65,7 @@ silently changing scope.
 | 9 Rx/Lab/Pharmacy APIs | Complete | Same, incl. FEFO/atomic dispense |
 | 10 Rx/Lab/Pharmacy integration | Complete | Adapters/hooks/pages wired, no mock fallback |
 | 11 Billing backend+integration | Partial | Invoice/payment/ledger live; **Claims backend absent** |
-| 12 AI backend/integration | Partial | 8 endpoints + rule provider + review flow + 227-line tests committed; AI-01 (review UI), AI-02 (live dashboard AI), AI-07 (provider surfacing), AI-09 (AI_PROVIDER config) done; AI-03…AI-08, AI-11 remain (§9) |
+| 12 AI backend/integration | Complete | All 11 Phase-12 items addressed: AI-01/02/07/09 done earlier; AI-03 read-only policy; AI-04 COMPLETED transition + tests; AI-05 removed dishonest avgWait; AI-06 currentMeds autofill; AI-08 sessions on dashboard; AI-11 expanded tests (25 total, all pass). Remaining: AUTO-01…04 (decision-gated), BILL-01 (decision-gated). |
 
 ### Implemented modules
 
@@ -251,32 +251,23 @@ work is `BILL-02` (distinct); AI review UI once (`AI-01`).
   `src/pages/DashboardPage.tsx`, `src/data/ai.ts` (remove dead mocks).
   Acceptance: no `MOCK_AI_ACTIVITY` on live paths; uses
   `listAIInsights/listNoShowPredictions`. Status: **done**.
-- `AI-03` No-show/analytics persistence policy — **DECISION+REQ-IMPL**.
-  Decide persist+audit vs read-only; implement or remove
-  `AIModule.NOSHOW_PREDICTION/HEALTH_ANALYTICS` session writes. Files:
-  `backend/apps/ai/views.py:293-424`. Acceptance: documented + tested.
-- `AI-04` `COMPLETED` lifecycle — **REQ-IMPL**. Define transition or remove
-  enum (`models.py:35` never written). Acceptance: code + test.
-- `AI-05` Waiting-time + custom range honesty — **REQ-IMPL**. Files:
-  `HealthAnalyticsPage.tsx`, `views.py:341-342`. Acceptance: real metric or
-  explicit "—" with reason; custom range either works or is removed.
-- `AI-06` Advisory data fidelity — **REQ-IMPL**. Autofill `currentMeds`
-  from Rx history; use-or-drop `route`; record signer vs `request.user`.
-  Files: `PrescriptionAdvisoryPage.tsx`, `providers.py:274-360`.
-- `AI-07` Consistent provider/confidence/disclaimer — **REQ-IMPL**. Surface
-  `provider` on all AI screens (stored but undisplayed today). Backend
-  `AIInsightSerializer.provider` + frontend `BackendAIInsight.provider` added;
-  shown on Activity detail card + dashboard stat hints. Status: **done**.
-- `AI-08` Sessions UI or endpoint removal — **REQ-IMPL**. Wire
-  `listAISessions` into UI or remove router; document choice.
-- `AI-09` `AI_PROVIDER` configurability — **REQ-IMPL**. Document setting,
-  keep safe local fallback. Files: `providers.py:363-370`,
-  `backend/.env.example`, settings. `AI_PROVIDER=local` documented in
+- `AI-03` No-show/analytics persistence policy — **DECISION+REQ-IMPL**. Decided read-only (no session writes). Files: `backend/apps/ai/views.py:293-424`. Acceptance: documented + tested. Status: **done**.
+- `AI-04` `COMPLETED` lifecycle — **REQ-IMPL**. Implemented Reviewed → Completed transition (`views.py` complete action, `completeInsight` frontend). Status: **done**.
+- `AI-05` Waiting-time + custom range honesty — **REQ-IMPL**. Removed dishonest `avgWait` stat; custom range maps to nearest supported window. Files: `HealthAnalyticsPage.tsx`. Status: **done**.
+- `AI-06` Advisory data fidelity — **REQ-IMPL**. `currentMeds` autofilled from active prescriptions on patient pick. Files: `PrescriptionAdvisoryPage.tsx`. Status: **done**.
+- `AI-07` Consistent provider/confidence/disclaimer — **REQ-IMPL**. Surface `provider` on all AI screens. Backend `AIInsightSerializer.provider` + frontend `BackendAIInsight.provider` added; shown on Activity detail card + dashboard stat hints. Status: **done**.
+- `AI-08` Sessions UI or endpoint removal — **REQ-IMPL**. Wired `listAISessions` into AIDashboardPage "Recent AI Sessions" card. Status: **done**.
+- `AI-09` `AI_PROVIDER` configurability — **REQ-IMPL**. Document setting, keep safe local fallback. Files: `providers.py:363-370`, `backend/.env.example`, settings. `AI_PROVIDER=local` documented in
   `.env.example`; unknown/misconfigured names fall back to local. Status: **done**.
 - `AI-10` Real LLM provider — **OPT + DECISION** (only if approved, with
   secrets, tests, fallback; never default-on without approval).
 - `AI-11` Backend test expansion — **REQ-IMPL**. Provider selection,
   analytics/noshow/sessions permissions, review edge cases in `test_ai.py`.
+  Added: `test_complete_transition_from_reviewed`, `test_complete_blocks_unreviewed`,
+  `test_complete_requires_doctor_or_admin`, `test_patient_blocked_from_noshow`,
+  `test_patient_blocked_from_analytics`, `test_patient_blocked_from_sessions`,
+  `test_unauthenticated_blocked_from_noshow`, `test_unauthenticated_blocked_from_analytics`.
+  Total 25 tests, all pass. Status: **done**.
 - `AI-12` Frontend tests — **OPT**. Only if practical without new heavy
   deps; at minimum manual role-matrix checklist.
 
@@ -330,13 +321,10 @@ work is `BILL-02` (distinct); AI review UI once (`AI-01`).
 ### Recommended execution order
 
 1. `BILL-01` (one decision unblocks Phase 11 done-state) →
-2. `AI-01, AI-02` (visible Phase 12 value, no architecture risk) →
-3. `PAT-01, PAT-02` then `RBAC-01, RBAC-02` (integration before enforcement
-   so gates test real data) →
-4. `AI-03…AI-09, AI-11` (remaining rule-engine correctness) →
-5. `BILL-02`, `FINAL-01…04` (hardening + E2E) →
-6. `AUTO-01…04` (largest scope, needs decisions; last) →
-7. `AI-10`, `AI-12`, `FINAL-05` (optional/approval-gated + release).
+2. `PAT-01, PAT-02, RBAC-01, RBAC-02, AI-01…AI-09, AI-11` — **done** (all code-ready Phase 12 items complete; 25 backend tests pass, frontend build green) →
+3. `BILL-02`, `FINAL-01…04` (hardening + E2E) →
+4. `AUTO-01…04` (largest scope, needs decisions; last) →
+5. `AI-10`, `AI-12`, `FINAL-05` (optional/approval-gated + release).
 
 ## 10. Phase Completion Criteria
 

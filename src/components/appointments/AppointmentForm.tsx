@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { AppointmentType } from '@/data/types'
-import { nextId, useHospitalStore } from '@/store/HospitalStore'
 import { useToast } from '@/context/ToastContext'
 import { DoctorSchedule } from '@/components/doctors/DoctorSchedule'
 import { Button } from '@/components/ui/button'
@@ -11,47 +10,88 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { listPatients, type BackendPatient } from '@/lib/api/patients'
+import { listDoctors, type BackendDoctor } from '@/lib/api/doctors'
+import { createAppointment } from '@/lib/api/appointments'
+import { toPatient } from '@/lib/api/adapters'
+import { toDoctor } from '@/lib/api/adapters'
+import { useApiList } from '@/lib/api/hooks'
 
 export function AppointmentForm() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const { patients, doctors, appointments, addAppointment } = useHospitalStore()
   const { success } = useToast()
+
+  const patientsList = useApiList<BackendPatient>(
+    ({ page, page_size }) => listPatients({ page, page_size }),
+    [],
+    100,
+  )
+  const doctorsList = useApiList<BackendDoctor>(
+    ({ page, page_size }) => listDoctors({ page, page_size }),
+    [],
+    100,
+  )
+
+  const patients = patientsList.items.map(toPatient)
+  const doctors = doctorsList.items.map(toDoctor)
 
   const [patientId, setPatientId] = useState('')
   const [doctorId, setDoctorId] = useState(params.get('doctor') ?? '')
-  const [date, setDate] = useState('2026-10-05')
+  const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [type, setType] = useState<AppointmentType>('In-person')
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
-  const [error, setError] = useState('')
+  const [errorMsg, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const doctor = useMemo(() => doctors.find((d) => d.id === doctorId), [doctors, doctorId])
   const slots = useMemo(() => doctor?.schedule.flatMap((s) => (s.available ? s.slots : [])) ?? [], [doctor])
   const uniqueSlots = useMemo(() => [...new Set(slots)], [slots])
 
-  const onSubmit = (ev: React.FormEvent) => {
+  const onSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!patientId) return setError('Please select a patient.')
     if (!doctorId) return setError('Please select a doctor.')
     if (!date) return setError('Please choose an appointment date.')
     if (!time) return setError('Please choose a time slot.')
     if (!reason.trim()) return setError('Please enter a reason for the visit.')
-    setError('')
 
-    const patient = patients.find((p) => p.id === patientId)!
-    const doc = doctors.find((d) => d.id === doctorId)!
-    const id = nextId('APT', appointments.map((a) => a.id))
-    addAppointment({
-      id, patientId, patientName: `${patient.firstName} ${patient.lastName}`,
-      doctorId, doctorName: doc.name, specialty: doc.specialty,
-      date, time, type, status: 'Pending',
-      reason: reason.trim(), notes: notes.trim(),
-      createdAt: '2026-09-30',
-    })
-    success('Appointment booked', `${id} · ${patient.firstName} with ${doc.name} on ${date} at ${time}.`)
-    navigate('/appointments')
+    const patient = patients.find((p) => p.id === patientId)
+    const doc = doctors.find((d) => d.id === doctorId)
+    if (!patient || !doc) return setError('Invalid patient or doctor.')
+
+    setError('')
+    setSubmitting(true)
+    try {
+      await createAppointment({
+        patient: patient.id,
+        doctor: doc.id,
+        date,
+        time,
+        type,
+        reason: reason.trim(),
+        notes: notes.trim(),
+      })
+      success('Appointment booked', `${patient.firstName} ${patient.lastName} with ${doc.name} on ${date} at ${time}.`)
+      navigate('/appointments')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Request failed.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (patientsList.loading || doctorsList.loading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <Button variant="ghost" size="sm" asChild className="w-fit">
+          <Link to="/appointments">Back to appointments</Link>
+        </Button>
+        <div className="p-8 text-center text-sm text-muted-foreground">Loading patients and doctors…</div>
+      </div>
+    )
   }
 
   return (
@@ -63,7 +103,7 @@ export function AppointmentForm() {
             <div>
               <Label htmlFor="af-patient">Patient *</Label>
               <div className="mt-1.5">
-                <Select value={patientId} onValueChange={setPatientId}>
+                <Select value={patientId} onValueChange={setPatientId} disabled={submitting}>
                   <SelectTrigger id="af-patient"><SelectValue placeholder="Select patient" /></SelectTrigger>
                   <SelectContent>
                     {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName} · {p.id}</SelectItem>)}
@@ -74,7 +114,7 @@ export function AppointmentForm() {
             <div>
               <Label htmlFor="af-doctor">Doctor *</Label>
               <div className="mt-1.5">
-                <Select value={doctorId} onValueChange={(v) => { setDoctorId(v); setTime('') }}>
+                <Select value={doctorId} onValueChange={(v) => { setDoctorId(v); setTime('') }} disabled={submitting}>
                   <SelectTrigger id="af-doctor"><SelectValue placeholder="Select doctor" /></SelectTrigger>
                   <SelectContent>
                     {doctors.filter((d) => d.status === 'Active').map((d) => (
@@ -86,12 +126,12 @@ export function AppointmentForm() {
             </div>
             <div>
               <Label htmlFor="af-date">Appointment Date *</Label>
-              <Input id="af-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1.5" />
+              <Input id="af-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1.5" disabled={submitting} />
             </div>
             <div>
               <Label htmlFor="af-type">Appointment Type</Label>
               <div className="mt-1.5">
-                <Select value={type} onValueChange={(v) => setType(v as AppointmentType)}>
+                <Select value={type} onValueChange={(v) => setType(v as AppointmentType)} disabled={submitting}>
                   <SelectTrigger id="af-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(['In-person', 'Follow-up', 'Emergency', 'Online'] as AppointmentType[]).map((t) => (
@@ -113,6 +153,7 @@ export function AppointmentForm() {
                     <button
                       key={s}
                       type="button"
+                      disabled={submitting}
                       onClick={() => setTime(s)}
                       className={cn(
                         'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
@@ -130,13 +171,13 @@ export function AppointmentForm() {
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="af-reason">Reason for Visit *</Label>
-              <Input id="af-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Chest pain review, fever, ANC checkup" className="mt-1.5" />
+              <Input id="af-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Chest pain review, fever, ANC checkup" className="mt-1.5" disabled={submitting} />
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="af-notes">Notes</Label>
-              <Textarea id="af-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes for the doctor…" className="mt-1.5" />
+              <Textarea id="af-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes for the doctor…" className="mt-1.5" disabled={submitting} />
             </div>
-            {error && <p className="text-sm text-destructive sm:col-span-2">{error}</p>}
+            {errorMsg && <p className="text-sm text-destructive sm:col-span-2">{errorMsg}</p>}
           </CardContent>
         </Card>
 
@@ -148,8 +189,8 @@ export function AppointmentForm() {
         )}
 
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
-          <Button type="submit">Book Appointment</Button>
+          <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>Cancel</Button>
+          <Button type="submit" disabled={submitting}>Book Appointment</Button>
         </div>
       </div>
     </form>

@@ -26,9 +26,11 @@ export function initials(first: string, last: string) {
 export function PatientTable({
   patients,
   onDelete,
+  canManage = false,
 }: {
   patients: Patient[]
-  onDelete: (p: Patient) => void
+  onDelete?: (id: string) => void
+  canManage?: boolean
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -85,14 +87,18 @@ export function PatientTable({
                         <Eye className="mr-2 h-4 w-4" /> View
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild className="cursor-pointer">
-                      <Link to={`/patients/${p.id}/edit`}>
-                        <Pencil className="mr-2 h-4 w-4" /> Edit
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onDelete(p)}>
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete
-                    </DropdownMenuItem>
+                    {canManage && (
+                      <DropdownMenuItem asChild className="cursor-pointer">
+                        <Link to={`/patients/${p.id}/edit`}>
+                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    {canManage && onDelete && (
+                      <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => onDelete(p.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
