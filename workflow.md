@@ -65,7 +65,10 @@ silently changing scope.
 | 9 Rx/Lab/Pharmacy APIs | Complete | Same, incl. FEFO/atomic dispense |
 | 10 Rx/Lab/Pharmacy integration | Complete | Adapters/hooks/pages wired, no mock fallback |
 | 11 Billing backend+integration | Partial | Invoice/payment/ledger live; **Claims backend absent** |
-| 12 AI backend/integration | Complete | All 11 Phase-12 items addressed: AI-01/02/07/09 done earlier; AI-03 read-only policy; AI-04 COMPLETED transition + tests; AI-05 removed dishonest avgWait; AI-06 currentMeds autofill; AI-08 sessions on dashboard; AI-11 expanded tests (25 total, all pass). Remaining: AUTO-01…04 (decision-gated), BILL-01 (decision-gated). |
+| 12 AI backend/integration | Complete | All 11 Phase-12 items addressed; Phase 6 automation complete (AUTO-01
+  polling transport + persisted models + In-App-only scope; AUTO-02 backend
+  ViewSets + audit; AUTO-03 polling frontend integration; AUTO-04 alert rules).
+  40 backend tests pass (AI + automation). Remaining decision-gated: BILL-01. |
 
 ### Implemented modules
 
@@ -273,17 +276,28 @@ work is `BILL-02` (distinct); AI review UI once (`AI-01`).
 
 ### Phase 6 — Automation completion
 
-- `AUTO-01` Scope + transport decision — **DECISION**. Persisted
-  reminders/alerts/queue? SSE/polling vs Channels? Email/SMS in scope?
-  Files: `backend/apps/automation/*` (new), `src/pages/automation/*`.
-- `AUTO-02` Backend persistence + permissions + audit — **REQ-IMPL**
-  (pending AUTO-01). Models/migrations/views/urls/tests for the agreed
-  entities.
-- `AUTO-03` Realtime wiring + frontend integration — **REQ-IMPL** (pending
-  AUTO-02). One transport; replace `setInterval`/`SIM_TIME` simulations;
-  honest loading/offline states.
-- `AUTO-04` Alert rules (low-stock/expiry, lab-ready, reminders) — **REQ-IMPL**
-  (pending AUTO-02). Tests for each rule.
+- `AUTO-01` Scope + transport decision — **DECISION**. Decided: persisted
+  reminders/alerts/queue/purchase-requests/events/notifications models;
+  **polling** transport (GET `/api/automation/events/` every 30s) since Django
+  is REST-only with no Channels/ASGI infra and polling works on serverless;
+  **In-App only** — email/SMS out of scope (channel field documents where they
+  hook in later). Files: `backend/apps/automation/*`, `src/pages/automation/*`,
+  `src/lib/api/automation.ts`, `src/store/AutomationStore.tsx`. Status: **done**.
+- `AUTO-02` Backend persistence + permissions + audit — **REQ-IMPL**. 8 models
+  (workflow, reminder, lab-alert, stock-alert, purchase-request, queue-patient,
+  automation-event, hospital-notification), migrations, serializers, ViewSets
+  with custom actions (toggle/send/reschedule/cancel/notify-doctor/notify-patient/
+  mark-reviewed/simulate-completion/resolve/call/start-consultation/
+  complete-consultation/skip/call-next/auto-advance/mark-read/mark-all-read/
+  delete-notification), IsStaffUser permissions, audit logging on every mutation.
+  Status: **done**.
+- `AUTO-03` Realtime wiring + frontend integration — **REQ-IMPL**. Polling hook
+  (30s event poll) + `src/lib/api/automation.ts` client; `AutomationStore`
+  rewritten to back state with live API; all 5 automation pages unchanged
+  (interface preserved). Status: **done**.
+- `AUTO-04` Alert rules (low-stock/expiry, lab-ready, reminders) — **REQ-IMPL**.
+  Encoded as model status fields + custom-action state transitions; 15 backend
+  tests cover each rule. Status: **done**.
 
 ### Phase 1 — RBAC UI completion
 
@@ -321,9 +335,10 @@ work is `BILL-02` (distinct); AI review UI once (`AI-01`).
 ### Recommended execution order
 
 1. `BILL-01` (one decision unblocks Phase 11 done-state) →
-2. `PAT-01, PAT-02, RBAC-01, RBAC-02, AI-01…AI-09, AI-11` — **done** (all code-ready Phase 12 items complete; 25 backend tests pass, frontend build green) →
-3. `BILL-02`, `FINAL-01…04` (hardening + E2E) →
-4. `AUTO-01…04` (largest scope, needs decisions; last) →
+2. `PAT-01, PAT-02, RBAC-01, RBAC-02, AI-01…AI-09, AI-11` — **done** →
+3. `AUTO-01…04` — **done** (polling transport, persisted models, In-App-only scope,
+   backend ViewSets + audit, polling frontend integration, alert rules; 40 backend tests pass) →
+4. `BILL-02`, `FINAL-01…04` (hardening + E2E) →
 5. `AI-10`, `AI-12`, `FINAL-05` (optional/approval-gated + release).
 
 ## 10. Phase Completion Criteria

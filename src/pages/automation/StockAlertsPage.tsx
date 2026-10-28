@@ -60,7 +60,7 @@ export function StockAlertsPage() {
     <div className="space-y-4">
       <PageHeader
         title="Pharmacy Stock Alerts"
-        description="Threshold monitoring + purchase requests · simulated in local mock state"
+        description="Threshold monitoring + purchase requests · live backend"
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -137,7 +137,7 @@ export function StockAlertsPage() {
                 variant="outline"
                 onClick={() => {
                   resolveStockAlert(a.id)
-                  success('Alert resolved', `${a.medicine} marked resolved (mock).`)
+                  success('Alert resolved', `${a.medicine} marked resolved.`)
                 }}
               >
                 Resolve {a.sku}
@@ -228,7 +228,7 @@ export function StockAlertsPage() {
                   priority,
                   notes,
                 })
-                success('Purchase request created', `${prTarget.medicine} × ${qty} requested (mock).`)
+                success('Purchase request created', `${prTarget.medicine} × ${qty} requested.`)
                 setPrTarget(null)
               }}
             >

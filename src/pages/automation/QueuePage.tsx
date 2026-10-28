@@ -49,12 +49,12 @@ export function QueuePage() {
     <div className="space-y-4">
       <PageHeader
         title="Waiting Room Live Queue"
-        description="Live Queue Simulation — WebSocket integration will be connected in the backend phase."
+        description="Waiting Room Live Queue · live backend"
         actions={
           <Button
             onClick={() => {
               callNextPatient()
-              success('Next patient called', 'Queue advanced in mock state.')
+              success('Next patient called', 'Queue advanced.')
             }}
             disabled={waiting.length === 0}
           >
@@ -79,7 +79,7 @@ export function QueuePage() {
             <p className="text-sm font-medium">Auto Update Queue {autoUpdate ? '· ON' : '· OFF'}</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Demo Simulation — advances the queue every {AUTO_MS / 1000}s using a lightweight local timer. No WebSocket connection.
+            Live backend — advances the queue every {AUTO_MS / 1000}s via polling. No WebSocket connection.
           </p>
           <Button
             size="sm"
@@ -87,7 +87,7 @@ export function QueuePage() {
             className="ms-auto"
             onClick={() => {
               setAutoUpdate((v) => !v)
-              success(autoUpdate ? 'Auto-update stopped' : 'Auto-update started', 'Queue simulation toggled (mock).')
+              success(autoUpdate ? 'Auto-update stopped' : 'Auto-update started', 'Queue simulation toggled.')
             }}
           >
             {autoUpdate ? 'Stop Auto Update' : 'Start Auto Update'}
@@ -120,19 +120,19 @@ export function QueuePage() {
             rows={filtered}
             onCall={(serial) => {
               callPatient(serial)
-              success('Patient called', `Serial ${serial} called (mock).`)
+              success('Patient called', `Serial ${serial} called.`)
             }}
             onStart={(serial) => {
               startConsultation(serial)
-              success('Consultation started', `Serial ${serial} in consultation (mock).`)
+              success('Consultation started', `Serial ${serial} in consultation.`)
             }}
             onComplete={(serial) => {
               completeConsultation(serial)
-              success('Consultation completed', `Serial ${serial} completed (mock).`)
+              success('Consultation completed', `Serial ${serial} completed.`)
             }}
             onSkip={(serial) => {
               skipPatient(serial)
-              success('Patient skipped', `Serial ${serial} skipped (mock).`)
+              success('Patient skipped', `Serial ${serial} skipped.`)
             }}
           />
         </CardContent>
