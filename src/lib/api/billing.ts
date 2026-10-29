@@ -74,6 +74,50 @@ export interface BackendLedgerEntry {
   created_at: string
 }
 
+export interface BackendClaim {
+  id: string
+  claim_number: string
+  patient: string
+  patient_name: string
+  invoice: string
+  provider: string
+  policy_number: string
+  claim_amount: string
+  approved_amount: string
+  status: 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Partially Approved' | 'Rejected' | 'Paid'
+  submitted_date: string | null
+  processed_date: string | null
+  notes: string
+  outstanding: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ClaimInput {
+  patient: string
+  invoice: string
+  provider: string
+  policy_number: string
+  claim_amount: string | number
+  notes?: string
+}
+
+export interface ClaimDecisionInput {
+  status: 'Approved' | 'Partially Approved' | 'Rejected'
+  approved_amount: string | number
+  notes?: string
+}
+
+export interface ClaimFilters {
+  patient?: string
+  invoice?: string
+  provider?: string
+  status?: string
+  search?: string
+  page?: number
+  page_size?: number
+}
+
 export interface InvoiceItemInput {
   description: string
   item_type?: string
@@ -188,4 +232,39 @@ export function cancelPayment(id: string, reason?: string) {
 
 export function listLedger(filters: LedgerFilters = {}) {
   return apiFetch<Page<BackendLedgerEntry>>(`/billing/ledger/${toQuery({ ...filters })}`)
+}
+
+export function listClaims(filters: ClaimFilters = {}) {
+  return apiFetch<Page<BackendClaim>>(`/billing/claims/${toQuery({ ...filters })}`)
+}
+
+export function createClaim(input: ClaimInput) {
+  return apiFetch<BackendClaim>('/billing/claims/', { method: 'POST', body: input })
+}
+
+export function updateClaim(id: string, input: Partial<ClaimInput>) {
+  return apiFetch<BackendClaim>(`/billing/claims/${id}/`, { method: 'PATCH', body: input })
+}
+
+export function deleteClaim(id: string) {
+  return apiFetch<never>(`/billing/claims/${id}/`, { method: 'DELETE' })
+}
+
+export function submitClaim(id: string) {
+  return apiFetch<BackendClaim>(`/billing/claims/${id}/submit/`, { method: 'POST' })
+}
+
+export function reviewClaim(id: string) {
+  return apiFetch<BackendClaim>(`/billing/claims/${id}/review/`, { method: 'POST' })
+}
+
+export function decideClaim(id: string, input: ClaimDecisionInput) {
+  return apiFetch<BackendClaim>(`/billing/claims/${id}/decide/`, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export function payClaim(id: string) {
+  return apiFetch<BackendClaim>(`/billing/claims/${id}/pay/`, { method: 'POST' })
 }

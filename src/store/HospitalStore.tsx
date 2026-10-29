@@ -3,18 +3,16 @@ import { MOCK_PATIENTS } from '@/data/patients'
 import { MOCK_DOCTORS } from '@/data/doctors'
 import { MOCK_APPOINTMENTS } from '@/data/appointments'
 import { MOCK_DISPENSING, MOCK_FOLLOWUPS, MOCK_INVENTORY, MOCK_LAB_ORDERS, MOCK_PRESCRIPTIONS } from '@/data/phase3'
-import { MOCK_CLAIMS, MOCK_INVOICES, MOCK_LEDGER, MOCK_PAYMENTS } from '@/data/billing'
+import { MOCK_INVOICES, MOCK_LEDGER, MOCK_PAYMENTS } from '@/data/billing'
 import type {
   Appointment,
   AppointmentStatus,
-  ClaimStatus,
   DispensingRecord,
   DispensingStatus,
   Doctor,
   FollowUp,
   FollowUpStatus,
   FullPrescription,
-  InsuranceClaim,
   InventoryItem,
   Invoice,
   InvoiceStatus,
@@ -60,15 +58,12 @@ interface HospitalStoreValue {
   setDispensingStatus: (id: string, status: DispensingStatus, dispensedQty?: number) => void
   invoices: Invoice[]
   payments: Payment[]
-  claims: InsuranceClaim[]
   ledger: LedgerTransaction[]
   getInvoice: (id: string) => Invoice | undefined
   addInvoice: (i: Invoice) => void
   updateInvoice: (id: string, patch: Partial<Invoice>) => void
   setInvoiceStatus: (id: string, status: InvoiceStatus) => void
   addPayment: (p: Payment) => void
-  setClaimStatus: (id: string, status: ClaimStatus) => void
-  addClaim: (c: InsuranceClaim) => void
 }
 
 const HospitalStoreContext = createContext<HospitalStoreValue | null>(null)
@@ -84,7 +79,6 @@ export function HospitalStoreProvider({ children }: { children: ReactNode }) {
   const [dispensing, setDispensing] = useState<DispensingRecord[]>(MOCK_DISPENSING)
   const [invoices, setInvoices] = useState<Invoice[]>(MOCK_INVOICES)
   const [payments, setPayments] = useState<Payment[]>(MOCK_PAYMENTS)
-  const [claims, setClaims] = useState<InsuranceClaim[]>(MOCK_CLAIMS)
   const [ledger] = useState<LedgerTransaction[]>(MOCK_LEDGER)
 
   const value = useMemo<HospitalStoreValue>(
@@ -130,7 +124,6 @@ export function HospitalStoreProvider({ children }: { children: ReactNode }) {
         ),
       invoices,
       payments,
-      claims,
       ledger,
       getInvoice: (id) => invoices.find((i) => i.id === id),
       addInvoice: (inv) => setInvoices((prev) => [inv, ...prev]),
@@ -150,11 +143,8 @@ export function HospitalStoreProvider({ children }: { children: ReactNode }) {
           }),
         )
       },
-      setClaimStatus: (id, status) =>
-        setClaims((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c))),
-      addClaim: (c) => setClaims((prev) => [c, ...prev]),
     }),
-    [patients, doctors, appointments, prescriptions, followUps, labOrders, inventory, dispensing, invoices, payments, claims, ledger],
+    [patients, doctors, appointments, prescriptions, followUps, labOrders, inventory, dispensing, invoices, payments, ledger],
   )
 
   return <HospitalStoreContext.Provider value={value}>{children}</HospitalStoreContext.Provider>

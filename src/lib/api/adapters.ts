@@ -16,6 +16,8 @@ import type {
   Patient,
   Doctor,
   Appointment,
+  InsuranceClaim,
+  ClaimStatus,
 } from '@/data/types'
 import type { BackendPrescription, BackendPrescriptionItem } from '@/lib/api/prescriptions'
 import type { BackendLabOrder, BackendLabOrderItem, BackendLabTest } from '@/lib/api/laboratory'
@@ -27,6 +29,7 @@ import type {
 import type { BackendPatient } from '@/lib/api/patients'
 import type { BackendDoctor } from '@/lib/api/doctors'
 import type { BackendAppointment } from '@/lib/api/appointments'
+import type { BackendClaim } from '@/lib/api/billing'
 
 /**
  * Centralized backend (snake_case) → frontend (camelCase) mappers for Phase 9.
@@ -347,5 +350,22 @@ export function toLedgerTransaction(entry: BackendLedgerEntry, balance: number):
     credit: isDebit ? 0 : amount,
     balance,
     recordedBy: '',
+  }
+}
+
+export function toClaim(c: BackendClaim): InsuranceClaim {
+  return {
+    id: c.id,
+    patientId: c.patient,
+    patientName: c.patient_name,
+    provider: c.provider,
+    policyNumber: c.policy_number,
+    invoiceId: c.invoice,
+    claimAmount: Number(c.claim_amount),
+    approvedAmount: Number(c.approved_amount),
+    submittedDate: c.submitted_date ?? '',
+    processedDate: c.processed_date ?? '',
+    status: c.status as ClaimStatus,
+    notes: c.notes || undefined,
   }
 }
