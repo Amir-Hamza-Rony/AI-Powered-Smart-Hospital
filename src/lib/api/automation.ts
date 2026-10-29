@@ -2,7 +2,7 @@
  * Automation API client (Phase 6 — AUTO-03).
  * Backs the automation pages with the persisted Django backend
  * (/api/automation/*). Transport is short-interval polling; the
- * frontend polls /api/automation/events/ every 30s via useAutomationPolling.
+ * frontend polls /api/automation/automation/events/ every 30s via useAutomationPolling.
  * Email/SMS delivery is out of scope (AUTO-01): only In-App is wired;
  * the `channel` field records where SMS/Email would hook in later.
  */
@@ -285,55 +285,55 @@ export interface WorkflowFilters {
 }
 
 export function listWorkflows(filters: WorkflowFilters = {}) {
-  return apiFetch<Page<BackendWorkflow>>(`/workflows/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendWorkflow>>(`/automation/workflows/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function toggleWorkflow(id: string) {
-  return apiFetch<BackendWorkflow>(`/workflows/${id}/toggle/`, { method: 'POST' })
+  return apiFetch<BackendWorkflow>(`/automation/workflows/${id}/toggle/`, { method: 'POST' })
 }
 
 export function listReminders(filters: { page?: number; page_size?: number } = {}) {
-  return apiFetch<Page<BackendReminder>>(`/reminders/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendReminder>>(`/automation/reminders/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function sendReminder(id: string) {
-  return apiFetch<BackendReminder>(`/reminders/${id}/send/`, { method: 'POST' })
+  return apiFetch<BackendReminder>(`/automation/reminders/${id}/send/`, { method: 'POST' })
 }
 
 export function rescheduleReminder(id: string) {
-  return apiFetch<BackendReminder>(`/reminders/${id}/reschedule/`, { method: 'POST' })
+  return apiFetch<BackendReminder>(`/automation/reminders/${id}/reschedule/`, { method: 'POST' })
 }
 
 export function cancelReminder(id: string) {
-  return apiFetch<BackendReminder>(`/reminders/${id}/cancel/`, { method: 'POST' })
+  return apiFetch<BackendReminder>(`/automation/reminders/${id}/cancel/`, { method: 'POST' })
 }
 
 export function listLabAlerts(filters: { page?: number; page_size?: number } = {}) {
-  return apiFetch<Page<BackendLabAlert>>(`/lab-alerts/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendLabAlert>>(`/automation/lab-alerts/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function notifyDoctor(id: string) {
-  return apiFetch<BackendLabAlert>(`/lab-alerts/${id}/notify_doctor/`, { method: 'POST' })
+  return apiFetch<BackendLabAlert>(`/automation/lab-alerts/${id}/notify_doctor/`, { method: 'POST' })
 }
 
 export function notifyPatient(id: string) {
-  return apiFetch<BackendLabAlert>(`/lab-alerts/${id}/notify_patient/`, { method: 'POST' })
+  return apiFetch<BackendLabAlert>(`/automation/lab-alerts/${id}/notify_patient/`, { method: 'POST' })
 }
 
 export function markLabReviewed(id: string) {
-  return apiFetch<BackendLabAlert>(`/lab-alerts/${id}/mark_reviewed/`, { method: 'POST' })
+  return apiFetch<BackendLabAlert>(`/automation/lab-alerts/${id}/mark_reviewed/`, { method: 'POST' })
 }
 
 export function simulateLabCompletion() {
-  return apiFetch<BackendLabAlert>(`/lab-alerts/simulate_completion/`, { method: 'POST' })
+  return apiFetch<BackendLabAlert>(`/automation/lab-alerts/simulate_completion/`, { method: 'POST' })
 }
 
 export function listStockAlerts(filters: { page?: number; page_size?: number } = {}) {
-  return apiFetch<Page<BackendStockAlert>>(`/stock-alerts/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendStockAlert>>(`/automation/stock-alerts/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function resolveStockAlert(id: string) {
-  return apiFetch<BackendStockAlert>(`/stock-alerts/${id}/resolve/`, { method: 'POST' })
+  return apiFetch<BackendStockAlert>(`/automation/stock-alerts/${id}/resolve/`, { method: 'POST' })
 }
 
 export interface PurchaseRequestInput {
@@ -347,62 +347,62 @@ export interface PurchaseRequestInput {
 }
 
 export function createPurchaseRequest(input: PurchaseRequestInput) {
-  return apiFetch<BackendPurchaseRequest>(`/purchase-requests/`, { method: 'POST', body: input })
+  return apiFetch<BackendPurchaseRequest>(`/automation/purchase-requests/`, { method: 'POST', body: input })
 }
 
 export function listPurchaseRequests(filters: { page?: number; page_size?: number } = {}) {
-  return apiFetch<Page<BackendPurchaseRequest>>(`/purchase-requests/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendPurchaseRequest>>(`/automation/purchase-requests/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function listQueuePatients(filters: { page?: number; page_size?: number } = {}) {
-  return apiFetch<Page<BackendQueuePatient>>(`/queue/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendQueuePatient>>(`/automation/queue/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function callPatient(serial: string) {
-  return apiFetch<BackendQueuePatient>(`/queue/${serial}/call/`, { method: 'POST' })
+  return apiFetch<BackendQueuePatient>(`/automation/queue/${serial}/call/`, { method: 'POST' })
 }
 
 export function startConsultation(serial: string) {
-  return apiFetch<BackendQueuePatient>(`/queue/${serial}/start_consultation/`, { method: 'POST' })
+  return apiFetch<BackendQueuePatient>(`/automation/queue/${serial}/start_consultation/`, { method: 'POST' })
 }
 
 export function completeConsultation(serial: string) {
-  return apiFetch<BackendQueuePatient>(`/queue/${serial}/complete_consultation/`, { method: 'POST' })
+  return apiFetch<BackendQueuePatient>(`/automation/queue/${serial}/complete_consultation/`, { method: 'POST' })
 }
 
 export function skipPatient(serial: string) {
-  return apiFetch<BackendQueuePatient>(`/queue/${serial}/skip/`, { method: 'POST' })
+  return apiFetch<BackendQueuePatient>(`/automation/queue/${serial}/skip/`, { method: 'POST' })
 }
 
 export function callNextPatient() {
-  return apiFetch<BackendQueuePatient>(`/queue/call_next/`, { method: 'POST' })
+  return apiFetch<BackendQueuePatient>(`/automation/queue/call_next/`, { method: 'POST' })
 }
 
 export function autoAdvanceQueue() {
-  return apiFetch<BackendQueuePatient | null>(`/queue/auto_advance/`, { method: 'POST' })
+  return apiFetch<BackendQueuePatient | null>(`/automation/queue/auto_advance/`, { method: 'POST' })
 }
 
 export function listEvents(filters: {
   page?: number; page_size?: number; workflow?: string; status?: string;
   event_type?: string; date?: string; search?: string
 } = {}) {
-  return apiFetch<Page<BackendAutomationEvent>>(`/events/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendAutomationEvent>>(`/automation/events/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function listNotifications(filters: {
   page?: number; page_size?: number; category?: string; read?: boolean
 } = {}) {
-  return apiFetch<Page<BackendNotification>>(`/notifications/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
+  return apiFetch<Page<BackendNotification>>(`/automation/notifications/${toQuery(filters as Record<string, string | number | boolean | undefined>)}`)
 }
 
 export function markNotificationRead(id: string) {
-  return apiFetch<BackendNotification>(`/notifications/${id}/mark_read/`, { method: 'POST' })
+  return apiFetch<BackendNotification>(`/automation/notifications/${id}/mark_read/`, { method: 'POST' })
 }
 
 export function markAllNotificationsRead() {
-  return apiFetch<never>(`/notifications/mark_all_read/`, { method: 'POST' })
+  return apiFetch<never>(`/automation/notifications/mark_all_read/`, { method: 'POST' })
 }
 
 export function deleteNotification(id: string) {
-  return apiFetch<never>(`/notifications/${id}/delete_notification/`, { method: 'DELETE' })
+  return apiFetch<never>(`/automation/notifications/${id}/delete_notification/`, { method: 'DELETE' })
 }
