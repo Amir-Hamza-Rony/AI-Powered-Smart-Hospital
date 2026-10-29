@@ -147,7 +147,6 @@ export function ClaimsPage() {
     }
     try {
       await createClaim({
-        patient: '',
         invoice: formInvoiceId.trim(),
         provider: formProvider,
         policy_number: `POL-${Math.floor(1000000 + Math.random() * 9000000)}`,

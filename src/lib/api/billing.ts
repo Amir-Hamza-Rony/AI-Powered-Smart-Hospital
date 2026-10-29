@@ -94,7 +94,7 @@ export interface BackendClaim {
 }
 
 export interface ClaimInput {
-  patient: string
+  patient?: string
   invoice: string
   provider: string
   policy_number: string

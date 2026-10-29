@@ -204,6 +204,11 @@ class ClaimSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         validated_data["claim_number"] = generate_claim_number()
+        # Derive patient from invoice if not provided (frontend create flow
+        # only needs invoice + provider; patient comes from the invoice).
+        invoice = validated_data.get("invoice")
+        if invoice is not None and not validated_data.get("patient"):
+            validated_data["patient"] = invoice.patient
         return super().create(validated_data)
 
     @transaction.atomic
