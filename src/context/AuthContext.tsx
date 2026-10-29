@@ -149,12 +149,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const demoLogin = useCallback(() => {
     setUser(null)
     setIsDemo(true)
+    setRole('admin')
     try {
       localStorage.setItem(DEMO_KEY, '1')
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [setRole])
 
   const logout = useCallback(async () => {
     await apiLogout(getRefreshToken())
