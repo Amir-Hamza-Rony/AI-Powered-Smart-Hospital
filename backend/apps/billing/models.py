@@ -65,6 +65,30 @@ class LedgerType(models.TextChoices):
     ADJUSTMENT = "Adjustment", "Adjustment"
 
 
+class ClaimStatus(models.TextChoices):
+    DRAFT = "Draft", "Draft"
+    SUBMITTED = "Submitted", "Submitted"
+    UNDER_REVIEW = "Under Review", "Under Review"
+    APPROVED = "Approved", "Approved"
+    PARTIALLY_APPROVED = "Partially Approved", "Partially Approved"
+    REJECTED = "Rejected", "Rejected"
+    PAID = "Paid", "Paid"
+
+
+# Allowed explicit claim lifecycle transitions.
+CLAIM_TRANSITIONS = {
+    ClaimStatus.DRAFT: {ClaimStatus.SUBMITTED},
+    ClaimStatus.SUBMITTED: {ClaimStatus.UNDER_REVIEW},
+    ClaimStatus.UNDER_REVIEW: {
+        ClaimStatus.APPROVED, ClaimStatus.PARTIALLY_APPROVED,
+        ClaimStatus.REJECTED},
+    ClaimStatus.APPROVED: {ClaimStatus.PAID},
+    ClaimStatus.PARTIALLY_APPROVED: {ClaimStatus.PAID},
+    ClaimStatus.REJECTED: set(),
+    ClaimStatus.PAID: set(),
+}
+
+
 # Allowed explicit transitions. Payment-driven moves to Partially Paid/Paid
 # are applied by the payment flow itself, not by clients.
 INVOICE_TRANSITIONS = {
@@ -275,3 +299,67 @@ class RevenueTransaction(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.type} · {self.amount} · {self.transaction_date}"
+
+
+def generate_claim_number() -> str:
+    """Unique human-friendly claim number; uniqueness enforced by DB constraint."""
+    import secrets
+
+    year = timezone.localdate().year
+    for _ in range(10):
+        candidate = f"CLM-{year}-{secrets.randbelow(900000) + 100000}"
+        if not Claim.objects.filter(claim_number=candidate).exists():
+            return candidate
+    return f"CLM-{year}-{uuid.uuid4().hex[:6].upper()}"
+
+
+class Claim(models.Model):
+    """Insurance claim linked to an invoice.
+
+    Lifecycle (staff-driven): Draft → Submitted → Under Review →
+    Approved / Partially Approved / Rejected → Paid. Amounts are
+    server-derived; approved_amount may only be set at the decision step.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    claim_number = models.CharField(max_length=30, unique=True, db_index=True)
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.PROTECT, related_name="claims")
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.PROTECT, related_name="claims")
+    provider = models.CharField(max_length=120)
+    policy_number = models.CharField(max_length=60)
+    claim_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
+    approved_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)])
+    status = models.CharField(
+        max_length=20, choices=ClaimStatus.choices, default=ClaimStatus.DRAFT)
+    submitted_date = models.DateField(null=True, blank=True)
+    processed_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="created_claims")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["patient", "created_at"]),
+            models.Index(fields=["invoice"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.claim_number} · {self.patient.name} ({self.status})"
+
+    @classmethod
+    def can_transition(cls, current: str, new: str) -> bool:
+        return new in CLAIM_TRANSITIONS.get(current, set())
+
+    @property
+    def outstanding(self):
+        return max(_money(), self.claim_amount - self.approved_amount)

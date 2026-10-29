@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -13,6 +14,8 @@ from apps.accounts.permissions import IsStaffUser
 from apps.audit.utils import log_audit
 from apps.billing.models import (
     PAYABLE_STATUSES,
+    Claim,
+    ClaimStatus,
     Invoice,
     InvoiceStatus,
     LedgerType,
@@ -22,6 +25,9 @@ from apps.billing.models import (
     ServiceType,
 )
 from apps.billing.serializers import (
+    ClaimDecisionSerializer,
+    ClaimPaySerializer,
+    ClaimSerializer,
     InvoiceSerializer,
     LedgerSerializer,
     PaymentCancelSerializer,
@@ -352,3 +358,191 @@ class LedgerViewSet(viewsets.ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         return success_response(self.get_serializer(self.get_object()).data,
                                 message="Ledger entry retrieved.")
+
+
+@extend_schema(tags=["claims"], summary="Insurance claim management")
+class ClaimViewSet(viewsets.ModelViewSet):
+    """Insurance claims linked to invoices.
+
+    Staff-driven lifecycle: Draft → Submitted → Under Review →
+    Approved / Partially Approved / Rejected → Paid. Amounts are
+    server-derived; approved_amount is set only at the decision step.
+    """
+
+    serializer_class = ClaimSerializer
+    lookup_field = "id"
+    lookup_value_regex = "[0-9a-f-]{36}"
+    permission_classes = [IsStaffUser]
+
+    def get_queryset(self):
+        qs = Claim.objects.select_related("patient", "invoice").all()
+        patient = self.request.query_params.get("patient")
+        if patient:
+            qs = qs.filter(patient__id=patient)
+        invoice = self.request.query_params.get("invoice")
+        if invoice:
+            qs = qs.filter(invoice__id=invoice)
+        provider = self.request.query_params.get("provider")
+        if provider:
+            qs = qs.filter(provider__icontains=provider)
+        claim_status = self.request.query_params.get("status")
+        if claim_status in [choice for choice, _ in ClaimStatus.choices]:
+            qs = qs.filter(status=claim_status)
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(claim_number__icontains=search)
+                | Q(patient__first_name__icontains=search)
+                | Q(patient__last_name__icontains=search)
+                | Q(provider__icontains=search))
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        claim = serializer.save()
+        if request.user.is_authenticated:
+            claim.created_by = request.user
+            claim.save(update_fields=["created_by", "updated_at"])
+        log_audit(request.user, "CLAIM_CREATED", "billing",
+                   f"Claim {claim.claim_number} created for "
+                   f"{claim.patient.name} (amount {claim.claim_amount}).",
+                   object_type="Claim", object_id=str(claim.id), request=request)
+        return success_response(ClaimSerializer(claim).data,
+                                message="Claim created.",
+                                status_code=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        claim = serializer.save()
+        log_audit(request.user, "CLAIM_UPDATED", "billing",
+                   f"Claim {claim.claim_number} updated.",
+                   object_type="Claim", object_id=str(claim.id), request=request)
+        return success_response(ClaimSerializer(claim).data, message="Claim updated.")
+
+    def perform_destroy(self, instance):
+        if instance.status != ClaimStatus.DRAFT:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Only Draft claims can be deleted.")
+        number = instance.claim_number
+        claim_id = str(instance.id)
+        instance.delete()
+        log_audit(self.request.user, "CLAIM_DELETED", "billing",
+                   f"Draft claim {number} deleted.",
+                   object_type="Claim", object_id=claim_id, request=self.request)
+
+    def retrieve(self, request, *args, **kwargs):
+        return success_response(self.get_serializer(self.get_object()).data,
+                                message="Claim retrieved.")
+
+    def _transition(self, request, target, audit_action, message, extra_fields=None):
+        claim = self.get_object()
+        if not Claim.can_transition(claim.status, target):
+            return error_response(
+                f"Cannot change status from {claim.status} to {target}.",
+                status_code=status.HTTP_400_BAD_REQUEST)
+        old_status = claim.status
+        claim.status = target
+        update_fields = ["status", "updated_at"]
+        now = timezone.localdate()
+        if target == ClaimStatus.SUBMITTED and not claim.submitted_date:
+            claim.submitted_date = now
+            update_fields.append("submitted_date")
+        if target in (ClaimStatus.APPROVED, ClaimStatus.PARTIALLY_APPROVED,
+                      ClaimStatus.REJECTED, ClaimStatus.PAID):
+            claim.processed_date = now
+            update_fields.append("processed_date")
+        if extra_fields:
+            for field, value in extra_fields.items():
+                setattr(claim, field, value)
+                update_fields.append(field)
+        claim.save(update_fields=update_fields)
+        log_audit(request.user, audit_action, "billing",
+                   f"Claim {claim.claim_number} {old_status} → {target}.",
+                   object_type="Claim", object_id=str(claim.id), request=request)
+        return success_response(ClaimSerializer(claim).data, message=message)
+
+    @extend_schema(summary="Submit a draft claim", request=None)
+    @action(detail=True, methods=["post"])
+    def submit(self, request, *args, **kwargs):
+        return self._transition(request, ClaimStatus.SUBMITTED,
+                                "CLAIM_SUBMITTED", "Claim submitted.")
+
+    @extend_schema(summary="Move a submitted claim under review", request=None)
+    @action(detail=True, methods=["post"])
+    def review(self, request, *args, **kwargs):
+        return self._transition(request, ClaimStatus.UNDER_REVIEW,
+                                "CLAIM_UNDER_REVIEW", "Claim under review.")
+
+    @extend_schema(summary="Approve / partially approve / reject a claim",
+                   request=ClaimDecisionSerializer)
+    @action(detail=True, methods=["post"])
+    def decide(self, request, *args, **kwargs):
+        claim = self.get_object()
+        if claim.status != ClaimStatus.UNDER_REVIEW:
+            return error_response(
+                "Only claims under review can be decided.",
+                status_code=status.HTTP_400_BAD_REQUEST)
+        serializer = ClaimDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_status = serializer.validated_data["status"]
+        approved_amount = serializer.validated_data["approved_amount"]
+        notes = serializer.validated_data.get("notes", "")
+        if not Claim.can_transition(claim.status, new_status):
+            return error_response(
+                f"Cannot change status from {claim.status} to {new_status}.",
+                status_code=status.HTTP_400_BAD_REQUEST)
+        if new_status in (ClaimStatus.APPROVED, ClaimStatus.PARTIALLY_APPROVED) \
+                and approved_amount > claim.claim_amount:
+            return error_response(
+                f"Approved amount {approved_amount} exceeds claim amount "
+                f"{claim.claim_amount}.",
+                status_code=status.HTTP_400_BAD_REQUEST)
+        now = timezone.localdate()
+        claim.status = new_status
+        claim.approved_amount = approved_amount
+        claim.processed_date = now
+        if notes:
+            claim.notes = notes
+        claim.save(update_fields=["status", "approved_amount", "processed_date",
+                                  "notes", "updated_at"])
+        log_audit(request.user, "CLAIM_DECIDED", "billing",
+                   f"Claim {claim.claim_number} decided → {new_status} "
+                   f"(approved {approved_amount}).",
+                   object_type="Claim", object_id=str(claim.id), request=request)
+        return success_response(ClaimSerializer(claim).data,
+                                message=f"Claim {new_status.lower()}.")
+
+    @extend_schema(summary="Mark an approved claim as paid", request=ClaimPaySerializer)
+    @action(detail=True, methods=["post"])
+    def pay(self, request, *args, **kwargs):
+        claim = self.get_object()
+        if claim.status not in (ClaimStatus.APPROVED, ClaimStatus.PARTIALLY_APPROVED):
+            return error_response(
+                "Only approved or partially approved claims can be paid.",
+                status_code=status.HTTP_400_BAD_REQUEST)
+        serializer = ClaimPaySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        notes = serializer.validated_data.get("notes", "")
+        claim.status = ClaimStatus.PAID
+        claim.processed_date = timezone.localdate()
+        if notes:
+            claim.notes = notes
+        claim.save(update_fields=["status", "processed_date", "notes", "updated_at"])
+        RevenueTransaction.objects.create(
+            invoice=claim.invoice, patient=claim.patient,
+            type=LedgerType.INSURANCE_PAYMENT, amount=claim.approved_amount,
+            transaction_date=claim.processed_date,
+            payment_method="Insurance", reference=claim.claim_number,
+            description=f"Insurance claim {claim.claim_number} paid for "
+                        f"invoice {claim.invoice.invoice_number}.",
+            recorded_by=request.user if request.user.is_authenticated else None,
+            notes=notes)
+        log_audit(request.user, "CLAIM_PAID", "billing",
+                   f"Claim {claim.claim_number} paid "
+                   f"(approved {claim.approved_amount}).",
+                   object_type="Claim", object_id=str(claim.id), request=request)
+        return success_response(ClaimSerializer(claim).data, message="Claim paid.")

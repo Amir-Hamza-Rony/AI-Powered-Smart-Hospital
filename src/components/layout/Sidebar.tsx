@@ -4,6 +4,7 @@ import { NAV_GROUPS, ALL_NAV_ITEMS } from '@/config/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { RoleSwitcher } from '@/components/layout/RoleSwitcher'
+import { useRole } from '@/context/RoleContext'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -21,6 +22,12 @@ function isActiveItem(pathname: string, href: string): boolean {
 
 export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
   const location = useLocation()
+  const { role } = useRole()
+
+  const visibleGroups = NAV_GROUPS.map((group) => {
+    const items = group.items.filter((item) => !item.roles || item.roles.includes(role))
+    return items.length > 0 ? { ...group, items } : null
+  }).filter(Boolean)
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -39,17 +46,17 @@ export function SidebarContent({ collapsed, onNavigate }: SidebarProps) {
 
       {/* Nav */}
       <nav className="scrollbar-thin flex-1 overflow-y-auto p-3" aria-label="Main navigation">
-        {NAV_GROUPS.map((group, gi) => (
-          <div key={group.label} className={cn(gi > 0 && 'mt-4')}>
+        {visibleGroups.map((group, gi) => (
+          <div key={group!.label} className={cn(gi > 0 && 'mt-4')}>
             {!collapsed ? (
               <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.label}
+                {group!.label}
               </p>
             ) : (
               gi > 0 && <Separator className="mx-auto my-3 w-8 bg-sidebar-border" />
             )}
             <ul className="space-y-1">
-              {group.items.map((item) => {
+              {group!.items.map((item) => {
                 const active = isActiveItem(location.pathname, item.href)
                 return (
                   <li key={item.href}>

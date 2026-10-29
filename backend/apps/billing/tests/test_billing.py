@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
 from apps.audit.models import AuditLog
-from apps.billing.models import Invoice, Payment, RevenueTransaction
+from apps.billing.models import Claim, Invoice, Payment, RevenueTransaction
 from apps.patients.models import Patient
 
 
@@ -62,6 +62,21 @@ class BillingApiTests(APITestCase):
         self._auth(self.receptionist)
         response = self.client.post(
             reverse("invoices-list"), self._invoice_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        return response.json()["data"]
+
+    def _create_claim(self):
+        self._auth(self.receptionist)
+        invoice = self._create_invoice()
+        self.client.post(reverse("invoices-issue", args=[invoice["id"]]))
+        response = self.client.post(
+            reverse("claims-list"), {
+                "patient": str(self.patient.id),
+                "invoice": invoice["id"],
+                "provider": "GreenLife Insurance",
+                "policy_number": "GL-H-8812001",
+                "claim_amount": "1000.00",
+            }, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         return response.json()["data"]
 
@@ -304,3 +319,138 @@ class BillingApiTests(APITestCase):
             reverse("payments-list"), {"payment_method": "Mobile Banking"}).json()["results"]), 1)
         self.assertEqual(len(self.client.get(
             reverse("ledger-list"), {"search": "MB-1"}).json()["results"]), 1)
+
+    # -- claims --------------------------------------------------------------
+    def test_unauthenticated_cannot_list_claims(self):
+        self.assertEqual(
+            self.client.get(reverse("claims-list")).status_code,
+            status.HTTP_401_UNAUTHORIZED)
+
+    def test_patient_role_cannot_access_claims(self):
+        self._auth(self.patient_user)
+        self.assertEqual(
+            self.client.get(reverse("claims-list")).status_code,
+            status.HTTP_403_FORBIDDEN)
+
+    def test_create_claim_server_side_number_and_audit(self):
+        created = self._create_claim()
+        self.assertTrue(created["claim_number"].startswith("CLM-"))
+        self.assertEqual(created["status"], "Draft")
+        self.assertEqual(created["approved_amount"], "0.00")
+        self.assertEqual(created["outstanding"], "1000.00")
+        self.assertTrue(AuditLog.objects.filter(
+            action="CLAIM_CREATED", object_id=created["id"]).exists())
+
+    def test_claim_submit_and_review_workflow(self):
+        created = self._create_claim()
+        self._auth(self.receptionist)
+        submitted = self.client.post(reverse("claims-submit", args=[created["id"]]))
+        self.assertEqual(submitted.status_code, status.HTTP_200_OK)
+        self.assertEqual(submitted.json()["data"]["status"], "Submitted")
+        self.assertIsNotNone(submitted.json()["data"]["submitted_date"])
+        reviewed = self.client.post(reverse("claims-review", args=[created["id"]]))
+        self.assertEqual(reviewed.status_code, status.HTTP_200_OK)
+        self.assertEqual(reviewed.json()["data"]["status"], "Under Review")
+        self.assertTrue(AuditLog.objects.filter(
+            action="CLAIM_SUBMITTED", object_id=created["id"]).exists())
+        self.assertTrue(AuditLog.objects.filter(
+            action="CLAIM_UNDER_REVIEW", object_id=created["id"]).exists())
+
+    def _to_under_review(self, claim_id):
+        self.client.post(reverse("claims-submit", args=[claim_id]))
+        self.client.post(reverse("claims-review", args=[claim_id]))
+
+    def test_claim_decide_approve(self):
+        created = self._create_claim()
+        self._to_under_review(created["id"])
+        self._auth(self.receptionist)
+        decided = self.client.post(
+            reverse("claims-decide", args=[created["id"]]), {
+                "status": "Approved", "approved_amount": "700.00",
+                "notes": "Approved up to policy limit."}, format="json")
+        self.assertEqual(decided.status_code, status.HTTP_200_OK)
+        self.assertEqual(decided.json()["data"]["status"], "Approved")
+        self.assertEqual(decided.json()["data"]["approved_amount"], "700.00")
+        self.assertEqual(decided.json()["data"]["outstanding"], "300.00")
+        self.assertIsNotNone(decided.json()["data"]["processed_date"])
+
+    def test_claim_decide_partial(self):
+        created = self._create_claim()
+        self._to_under_review(created["id"])
+        self._auth(self.receptionist)
+        decided = self.client.post(
+            reverse("claims-decide", args=[created["id"]]), {
+                "status": "Partially Approved", "approved_amount": "400.00"},
+            format="json")
+        self.assertEqual(decided.status_code, status.HTTP_200_OK)
+        self.assertEqual(decided.json()["data"]["status"], "Partially Approved")
+
+    def test_claim_decide_reject(self):
+        created = self._create_claim()
+        self._to_under_review(created["id"])
+        self._auth(self.receptionist)
+        decided = self.client.post(
+            reverse("claims-decide", args=[created["id"]]), {
+                "status": "Rejected", "approved_amount": "0.00"},
+            format="json")
+        self.assertEqual(decided.status_code, status.HTTP_200_OK)
+        self.assertEqual(decided.json()["data"]["status"], "Rejected")
+
+    def test_claim_pay_creates_ledger(self):
+        created = self._create_claim()
+        self._to_under_review(created["id"])
+        self.client.post(
+            reverse("claims-decide", args=[created["id"]]), {
+                "status": "Approved", "approved_amount": "1000.00"},
+            format="json")
+        self._auth(self.receptionist)
+        invoice_id = created["invoice"]
+        paid = self.client.post(reverse("claims-pay", args=[created["id"]]), {},
+                                format="json")
+        self.assertEqual(paid.status_code, status.HTTP_200_OK)
+        self.assertEqual(paid.json()["data"]["status"], "Paid")
+        self.assertEqual(paid.json()["data"]["approved_amount"], "1000.00")
+        claim = Claim.objects.get(pk=created["id"])
+        self.assertTrue(RevenueTransaction.objects.filter(
+            invoice_id=invoice_id, type="Insurance Payment").exists())
+        self.assertTrue(AuditLog.objects.filter(
+            action="CLAIM_PAID", object_id=created["id"]).exists())
+
+    def test_claim_cannot_skip_transition(self):
+        created = self._create_claim()
+        self._auth(self.receptionist)
+        self.assertEqual(
+            self.client.post(reverse("claims-decide", args=[created["id"]]), {
+                "status": "Approved", "approved_amount": "500.00"},
+                format="json").status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            self.client.post(reverse("claims-pay", args=[created["id"]]), {},
+                             format="json").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_claim_only_draft_editable(self):
+        created = self._create_claim()
+        self.client.post(reverse("claims-submit", args=[created["id"]]))
+        self._auth(self.receptionist)
+        self.assertEqual(
+            self.client.patch(
+                reverse("claims-detail", args=[created["id"]]),
+                {"claim_amount": "9999.00"}, format="json").status_code,
+            status.HTTP_400_BAD_REQUEST)
+
+    def test_claim_reject_zero_approved(self):
+        created = self._create_claim()
+        self._to_under_review(created["id"])
+        self._auth(self.receptionist)
+        self.assertEqual(
+            self.client.post(reverse("claims-decide", args=[created["id"]]), {
+                "status": "Rejected", "approved_amount": "100.00"},
+                format="json").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_claim_approved_amount_cannot_exceed_claim(self):
+        created = self._create_claim()
+        self._to_under_review(created["id"])
+        self._auth(self.receptionist)
+        self.assertEqual(
+            self.client.post(reverse("claims-decide", args=[created["id"]]), {
+                "status": "Approved", "approved_amount": "9999.00"},
+                format="json").status_code, status.HTTP_400_BAD_REQUEST)

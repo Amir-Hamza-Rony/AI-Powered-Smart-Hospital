@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import type { AIAdvisorySeverity, AIPrescriptionAdvisory, AIProposedMedicine } from '@/data/types'
 import { prescriptionAdvisory, reviewInsight, type BackendAdvisory } from '@/lib/api/ai'
+import { listPrescriptions } from '@/lib/api/prescriptions'
 import { getPatientDetail, listPatientsLookup, type LookupPatient } from '@/lib/api/lookups'
 import { canUseClinicalAI } from '@/lib/api/hooks'
 import { ApiError } from '@/lib/api/client'
@@ -63,6 +64,13 @@ export function PrescriptionAdvisoryPage() {
         setPatientAllergies(p.allergies ?? [])
       })
       .catch(() => setPatientAllergies([]))
+    listPrescriptions({ patient: id, status: 'Active' })
+      .then((page) => {
+        const meds = (page.results as Array<{ items?: Array<{ medicine_name?: string | null }> }>)
+          .flatMap((r) => (r.items ?? []).map((i) => i.medicine_name).filter(Boolean))
+        if (meds.length) setCurrentMeds(meds.join('\n'))
+      })
+      .catch(() => {})
   }
 
   const updateMed = (idx: number, patch: Partial<AIProposedMedicine>) =>

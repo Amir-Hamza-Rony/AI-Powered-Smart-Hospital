@@ -57,7 +57,7 @@ export function RemindersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Appointment Reminders"
-        description="Automated reminder workflow · actions simulated in local mock state"
+        description="Automated reminder workflow · live backend"
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -218,7 +218,7 @@ export function RemindersPage() {
               onClick={() => {
                 if (!detail) return
                 sendReminder(detail.id)
-                success('Reminder sent', `${detail.appointmentId} marked Sent (mock).`)
+                success('Reminder sent', `${detail.appointmentId} marked Sent.`)
               }}
             >
               <Send className="mr-1 h-3.5 w-3.5" /> Send Reminder
@@ -228,7 +228,7 @@ export function RemindersPage() {
               onClick={() => {
                 if (!detail) return
                 rescheduleReminder(detail.id)
-                success('Reminder rescheduled', `${detail.appointmentId} moved to the next batch (mock).`)
+                success('Reminder rescheduled', `${detail.appointmentId} moved to the next batch.`)
               }}
             >
               Reschedule
@@ -238,7 +238,7 @@ export function RemindersPage() {
               onClick={() => {
                 if (!detail) return
                 cancelReminder(detail.id)
-                success('Reminder cancelled', `${detail.appointmentId} reminder cancelled (mock).`)
+                success('Reminder cancelled', `${detail.appointmentId} reminder cancelled.`)
                 setSelected(null)
               }}
             >

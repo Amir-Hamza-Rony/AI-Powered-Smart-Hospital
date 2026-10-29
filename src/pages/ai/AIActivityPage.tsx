@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { DataPagination } from '@/components/shared/DataPagination'
 import { ApiErrorState, ApiForbiddenState, ApiLoading } from '@/components/shared/ApiState'
 import { AIActivityStatusBadge } from '@/components/ai/AIBadges'
-import { listAIInsights, reviewInsight, type BackendAIInsight } from '@/lib/api/ai'
+import { listAIInsights, reviewInsight, completeInsight, type BackendAIInsight } from '@/lib/api/ai'
 import { canUseClinicalAI, useApiList } from '@/lib/api/hooks'
 import { ApiError } from '@/lib/api/client'
 import { useAuth } from '@/context/AuthContext'
@@ -52,6 +52,7 @@ export function AIActivityPage() {
   const [selected, setSelected] = useState<BackendAIInsight | null>(null)
   const [note, setNote] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  const [completing, setCompleting] = useState(false)
 
   const canReview = canUseClinicalAI(user?.role ?? null)
 
@@ -87,6 +88,21 @@ export function AIActivityPage() {
       error('Review failed', err instanceof ApiError ? err.message : 'Request failed.')
     } finally {
       setReviewing(false)
+    }
+  }
+
+  const confirmComplete = async () => {
+    if (!selected || !canReview || completing) return
+    setCompleting(true)
+    try {
+      const updated = await completeInsight(selected.id)
+      setSelected(updated)
+      list.refresh()
+      success('Insight completed', 'Insight archived as completed.')
+    } catch (err) {
+      error('Complete failed', err instanceof ApiError ? err.message : 'Request failed.')
+    } finally {
+      setCompleting(false)
     }
   }
 
@@ -292,6 +308,11 @@ export function AIActivityPage() {
               <Button onClick={confirmReview} disabled={reviewing}>
                 <ShieldCheck className="mr-1 h-4 w-4" />
                 {reviewing ? 'Recording…' : 'Confirm Sign-off'}
+              </Button>
+            )}
+            {selected?.review_status === 'Reviewed' && canReview && (
+              <Button variant="secondary" onClick={confirmComplete} disabled={completing}>
+                {completing ? 'Archiving…' : 'Complete'}
               </Button>
             )}
           </DialogFooter>
