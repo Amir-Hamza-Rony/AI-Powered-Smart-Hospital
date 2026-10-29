@@ -7,6 +7,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Activity, LogIn } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { ApiError } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,7 +21,8 @@ const DEMO_ACCOUNTS = [
 ]
 
 export function LoginPage() {
-  const { isAuthenticated, loading, login, demoLogin } = useAuth()
+  const { isAuthenticated, loading, login, demoLogin, isDemo } = useAuth()
+  const { success } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
@@ -44,6 +46,11 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       await login(email.trim(), password)
+      if (isDemo) {
+        success('Demo access', 'Backend unavailable — running in demo mode.')
+      } else {
+        success('Signed in', 'Welcome back.')
+      }
       navigate(from, { replace: true })
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Login failed. Please try again.')
@@ -54,6 +61,7 @@ export function LoginPage() {
 
   function handleDemo() {
     demoLogin()
+    success('Demo access', 'Running in demo mode.')
     navigate(from, { replace: true })
   }
 
