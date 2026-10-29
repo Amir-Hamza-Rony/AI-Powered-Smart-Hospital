@@ -1,45 +1,40 @@
 # Project Status — AI-Powered Smart Hospital
 
 > Concise dashboard. Details and process rules live in `workflow.md`.
-> Updated: 2026-10-13. Test results below are **historical** (not re-executed
-> in the docs task).
+> Updated: 2026-10-28. Test results re-executed in this session.
 
-- **Branch:** `rony-dev` (in sync with `origin/rony-dev` at verification)
-- **Last verified commit:** `d81e243` (2026-10-04)
-  `feat:implement AI-Powered Clinical & Operational Intelligence`
-- **Worktree:** dirty — Phase 12 AI work in progress (AI-01, AI-02, AI-07,
-  AI-09 implemented; uncommitted). See `git status` for the file list.
-- **Current phase:** Phase 12 (partial): AI-01, AI-02, AI-07, AI-09 complete;
-  AI-03…AI-08, AI-11 remain. Phase 11 Claims still open.
+- **Branch:** `rony-dev` (ahead of `origin/rony-dev` by 3 commits)
+- **Last verified commit:** `dcb18b5` (2026-10-28)
+  `feat: Phase 6 automation backend + live frontend integration (AUTO-01…04)`
+- **Previous commit:** `79e47e9` `feat: complete Phase 12 AI polish + PAT-02 live API + RBAC enforcement`
+- **Worktree:** clean — all code-ready work committed.
+- **Current phase:** All code-ready work complete. Remaining: `FINAL-01…04` (hardening + E2E)
+  and optional `AI-10`, `AI-12`.
 
 ## Completed (verified in code)
 
-Phases 3, 5 (as live), 7, 8 (backend), 9, 10. See `workflow.md` §3 matrix.
+Phases 3, 5 (as live), 6, 7, 8 (backend), 9, 10, 11 (Billing incl. Claims).
+Phase 12: `AI-01`…`AI-09`, `AI-11`, `PAT-01`, `PAT-02`, `RBAC-01`, `RBAC-02`.
+Phase 6: `AUTO-01`…`AUTO-04`. See `workflow.md` §3 matrix.
 
 ## Incomplete
 
-- Phase 1: route/nav role enforcement (`RBAC-01/02`)
-- Phase 2: patients/doctors/appointments frontend integration (`PAT-01/02`)
-- Phase 4/11: Claims backend + integration (`BILL-01/02`)
-- Phase 12 polish: `AI-03`…`AI-08`, `AI-11` (plus optional `AI-10`, `AI-12`);
-  `AI-01`, `AI-02`, `AI-07`, `AI-09` complete (uncommitted)
-- Phase 6: automation backend + realtime (`AUTO-01`…`04`)
+- `FINAL-01…04` (hardening + E2E) — release hardening.
+- Optional: `AI-10` (LLM provider decision pending), `AI-12`.
 
 ## Current blockers / decisions
 
-1. Claims in or out of scope (no spec file in repo — ask user).
-2. LLM provider approved or not (default: local rules).
-3. Realtime transport + email/SMS scope for automation.
+1. LLM provider approved or not (default: local rules). Blocks optional `AI-10`.
 
 ## Next task
 
-`BILL-01` — Claims scope decision. Why: single product answer that fixes
-the definition of done for Phase 11; then remaining Phase 12 polish
-(`AI-03`…`AI-08`, `AI-11`). `AI-01`, `AI-02`, `AI-07`, `AI-09` are complete
-but uncommitted.
+`FINAL-01` (release hardening / E2E). All code-ready work is finished and
+committed; nothing is blocked on a product decision.
 
-## Latest test evidence (historical)
+## Latest test evidence (re-executed this session)
 
-12 backend `APITestCase` suites incl. `test_billing.py` (~20 cases) and
-`test_ai.py` (14 cases, 227 lines). Frontend: no tests. Full suite must be
-re-run in the next coding session before any phase is marked complete.
+- Backend: 71/71 tests pass (`apps.billing` 31 + `apps.ai` 25 +
+  `apps.automation` 15), incl. 15 new `BILL-02` claim cases.
+- Frontend: `tsc -b` clean, `oxlint` clean, `vite build` green.
+- Local dev server confirmed running at `http://127.0.0.1:8000/` (401s on
+  unauthenticated calls are expected; auth required).

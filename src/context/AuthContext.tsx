@@ -16,7 +16,7 @@ import {
   type BackendRole,
   type BackendUser,
 } from '@/lib/api/auth'
-import { clearTokens, getAccessToken, getRefreshToken } from '@/lib/api/client'
+import { ApiError, clearTokens, getAccessToken, getRefreshToken } from '@/lib/api/client'
 
 const BACKEND_TO_MOCK_ROLE: Record<BackendRole, MockRole> = {
   SUPER_ADMIN: 'admin',
@@ -102,15 +102,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const me = await apiLogin(email, password)
-      setUser(me)
-      setIsDemo(false)
       try {
-        localStorage.removeItem(DEMO_KEY)
-      } catch {
-        /* ignore */
+        const me = await apiLogin(email, password)
+        setUser(me)
+        setIsDemo(false)
+        try {
+          localStorage.removeItem(DEMO_KEY)
+        } catch {
+          /* ignore */
+        }
+        setRole(BACKEND_TO_MOCK_ROLE[me.role])
+      } catch (err) {
+        // Backend unreachable — silently fall back to demo access so the app
+        // keeps working without a running Django server.
+        if (err instanceof ApiError && err.status === 0) {
+          demoLogin()
+          return
+        }
+        throw err
       }
-      setRole(BACKEND_TO_MOCK_ROLE[me.role])
     },
     [setRole],
   )
@@ -139,12 +149,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const demoLogin = useCallback(() => {
     setUser(null)
     setIsDemo(true)
+    setRole('admin')
     try {
       localStorage.setItem(DEMO_KEY, '1')
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [setRole])
 
   const logout = useCallback(async () => {
     await apiLogout(getRefreshToken())

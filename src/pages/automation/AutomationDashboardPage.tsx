@@ -37,7 +37,7 @@ export function AutomationDashboardPage() {
     <div className="space-y-4">
       <PageHeader
         title="Workflow Automation"
-        description="Centralized overview of automated hospital workflows · frontend demo simulation"
+        description="Centralized overview of automated hospital workflows · live backend"
         actions={
           <Button variant="outline" asChild>
             <Link to="/automation/activity">View Activity Log</Link>
@@ -100,9 +100,9 @@ export function AutomationDashboardPage() {
             <span className="inline-flex items-center gap-1">
               <Package className="h-3.5 w-3.5" /> Stock monitoring
             </span>
-            <span className="inline-flex items-center gap-1">
-              <TriangleAlert className="h-3.5 w-3.5" /> Demo Simulation — backend real-time integration will be implemented in a later phase.
-            </span>
+              <span className="inline-flex items-center gap-1">
+                <TriangleAlert className="h-3.5 w-3.5" /> Live backend — events polled every 30s
+              </span>
           </div>
         </CardContent>
       </Card>

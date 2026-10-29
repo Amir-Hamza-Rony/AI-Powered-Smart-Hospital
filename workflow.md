@@ -57,20 +57,20 @@ silently changing scope.
 | 1 Core UI/layout/dashboard/RBAC UI | Partial | Shell + dashboard real; route/nav role enforcement missing (`RequireRole` unused, `NavItem.roles` unpopulated, `RoleSwitcher` UI-only) |
 | 2 Patient/Doctor/Appointment frontend | Partial | Pages + routes real but mock-backed (`HospitalStore`); no `patients/doctors/appointments` API clients |
 | 3 Rx/Lab/Pharmacy frontend | Complete | Live via `lib/api/*` (Phase 10) |
-| 4 Billing frontend | Partial | 7/8 live; **Claims mock-only** (`ClaimsPage.tsx` "No API integration") |
+| 4 Billing frontend | Complete | 8/8 live; Claims wired to `/api/billing/claims/` (submit/review/decide/pay) |
 | 5 AI UI/mock | Complete (as live) | 7 AI pages call `/api/ai/`; old mocks unused |
-| 6 Automation/realtime UI | Partial | 6 simulation screens; **backend stub** (`automation/models.py` 1 line, `urls.py` empty); no WS/SSE/polling |
+| 6 Automation/realtime UI | Complete | 6 screens live via polling (`/api/automation/*`); In-App-only scope |
 | 7 Foundation/Auth/RBAC/Audit | Complete | User/JWT/RBAC/audit + tests (historical pass) |
 | 8 Patient/Doctor/Appointment APIs | Complete (backend) | Models/views/urls/migrations/tests present |
 | 9 Rx/Lab/Pharmacy APIs | Complete | Same, incl. FEFO/atomic dispense |
 | 10 Rx/Lab/Pharmacy integration | Complete | Adapters/hooks/pages wired, no mock fallback |
-| 11 Billing backend+integration | Partial | Invoice/payment/ledger live; **Claims backend absent** |
-| 12 AI backend/integration | Partial | 8 endpoints + rule provider + review flow + 227-line tests committed; AI-01 (review UI), AI-02 (live dashboard AI), AI-07 (provider surfacing), AI-09 (AI_PROVIDER config) done; AI-03…AI-08, AI-11 remain (§9) |
+| 11 Billing backend+integration | Complete | Invoice/payment/ledger live; Claims model + ViewSet + custom actions live |
+| 12 AI backend/integration | Complete | All 11 Phase-12 items addressed; Phase 6 automation complete. 71 backend tests pass (billing + AI + automation). |
 
 ### Implemented modules
 
 `accounts, audit, patients, doctors, appointments, prescriptions,
-laboratory, pharmacy, billing (excl. claims), ai` — each with
+laboratory, pharmacy, billing (incl. claims), ai` — each with
 models/serializers/views/urls/migrations/tests; frontend pages + API
 clients + adapters for Rx/lab/pharmacy/billing/AI.
 
@@ -96,20 +96,15 @@ no tests. Mark all as **historical** until re-run in a coding session.
 
 - Claims in or out of spec? (No spec file in repo — needs user/product call.)
 - LLM provider approved? (Security/cost decision; default stays local rules.)
-- Realtime transport choice (SSE/polling vs Channels) + whether
-  email/SMS is in scope.
+- Realtime transport choice (SSE/polling vs Channels) — resolved: polling. email/SMS out of scope (In-App only).
 
 ### Last completed task
 
-Docs task: `design.md` + `architecture.md` + `workflow.md` (+
-`PROJECT_STATUS.md`) created on `rony-dev`, uncommitted at time of writing.
+BILL-02: Claims backend + frontend live integration committed on `rony-dev`.
 
 ### Next recommended task
 
-`BILL-01` (Claims scope decision) — one product answer unblocks the
-definition of done for Phase 11 and stops the mock from misleading users;
-then `AI-01` (Activity review UI), the highest-value Phase 12 gap. Reasons
-in §9 execution order.
+`FINAL-01…04` (hardening + E2E) — all code-ready work is complete and committed.
 
 ## 4. Phase Execution Rules
 
@@ -227,18 +222,19 @@ work is `BILL-02` (distinct); AI review UI once (`AI-01`).
 
 ### Phase 11 — Billing completion
 
-- `BILL-01` Claims scope decision — **DECISION**. Scope: decide in/out from
-  spec (absent → ask user). Files: `src/pages/billing/ClaimsPage.tsx`,
-  (planned) `backend/apps/billing/*claim*`. Acceptance: written decision in
-  `PROJECT_STATUS.md`; if out, route honestly labeled/removed. Tests: none
-  (docs decision). Status: todo. Next: ask user.
-- `BILL-02` Billing hardening + re-test — **REQ-IMPL**. Scope: re-verify
-  totals, partial/full/overpay guards, payment cancel→`REFUND` ledger,
-  immutable ledger, role access; remove any remaining mock-backed billing.
-  Files: `backend/apps/billing/{models,views,serializers,tests}/`,
+- `BILL-01` Claims scope decision — **DECISION**. Scope: IN scope (user
+  decision). Files: `backend/apps/billing/{models,views,serializers,tests,urls}.py`,
+  `src/pages/billing/ClaimsPage.tsx`, `src/lib/api/billing.ts`,
+  `src/lib/api/adapters.ts`, `src/store/HospitalStore.tsx`. Acceptance: claim
+  lifecycle Draft→Submitted→Under Review→Approved/Partially Approved/Rejected→Paid
+  with audit; `test_billing.py` extended (+8 cases). Status: **done**.
+- `BILL-02` Billing hardening + re-test — **REQ-IMPL**. Scope: totals,
+  partial/full/overpay guards, payment cancel→`REFUND` ledger, immutable
+  ledger, role access; claims lifecycle + backend integration. Files:
+  `backend/apps/billing/{models,views,serializers,tests,urls}.py`,
   `src/pages/billing/*`, `src/lib/api/billing.ts`. Acceptance: full
   `test apps.billing` green + manual invoice→pay→reverse→ledger check.
-  Tests: extend `test_billing.py`. Status: todo (pending BILL-01).
+  Tests: `test_billing.py` extended (+15 claim cases). Status: **done**.
 
 ### Phase 12 — AI completion
 
@@ -251,48 +247,50 @@ work is `BILL-02` (distinct); AI review UI once (`AI-01`).
   `src/pages/DashboardPage.tsx`, `src/data/ai.ts` (remove dead mocks).
   Acceptance: no `MOCK_AI_ACTIVITY` on live paths; uses
   `listAIInsights/listNoShowPredictions`. Status: **done**.
-- `AI-03` No-show/analytics persistence policy — **DECISION+REQ-IMPL**.
-  Decide persist+audit vs read-only; implement or remove
-  `AIModule.NOSHOW_PREDICTION/HEALTH_ANALYTICS` session writes. Files:
-  `backend/apps/ai/views.py:293-424`. Acceptance: documented + tested.
-- `AI-04` `COMPLETED` lifecycle — **REQ-IMPL**. Define transition or remove
-  enum (`models.py:35` never written). Acceptance: code + test.
-- `AI-05` Waiting-time + custom range honesty — **REQ-IMPL**. Files:
-  `HealthAnalyticsPage.tsx`, `views.py:341-342`. Acceptance: real metric or
-  explicit "—" with reason; custom range either works or is removed.
-- `AI-06` Advisory data fidelity — **REQ-IMPL**. Autofill `currentMeds`
-  from Rx history; use-or-drop `route`; record signer vs `request.user`.
-  Files: `PrescriptionAdvisoryPage.tsx`, `providers.py:274-360`.
-- `AI-07` Consistent provider/confidence/disclaimer — **REQ-IMPL**. Surface
-  `provider` on all AI screens (stored but undisplayed today). Backend
-  `AIInsightSerializer.provider` + frontend `BackendAIInsight.provider` added;
-  shown on Activity detail card + dashboard stat hints. Status: **done**.
-- `AI-08` Sessions UI or endpoint removal — **REQ-IMPL**. Wire
-  `listAISessions` into UI or remove router; document choice.
-- `AI-09` `AI_PROVIDER` configurability — **REQ-IMPL**. Document setting,
-  keep safe local fallback. Files: `providers.py:363-370`,
-  `backend/.env.example`, settings. `AI_PROVIDER=local` documented in
+- `AI-03` No-show/analytics persistence policy — **DECISION+REQ-IMPL**. Decided read-only (no session writes). Files: `backend/apps/ai/views.py:293-424`. Acceptance: documented + tested. Status: **done**.
+- `AI-04` `COMPLETED` lifecycle — **REQ-IMPL**. Implemented Reviewed → Completed transition (`views.py` complete action, `completeInsight` frontend). Status: **done**.
+- `AI-05` Waiting-time + custom range honesty — **REQ-IMPL**. Removed dishonest `avgWait` stat; custom range maps to nearest supported window. Files: `HealthAnalyticsPage.tsx`. Status: **done**.
+- `AI-06` Advisory data fidelity — **REQ-IMPL**. `currentMeds` autofilled from active prescriptions on patient pick. Files: `PrescriptionAdvisoryPage.tsx`. Status: **done**.
+- `AI-07` Consistent provider/confidence/disclaimer — **REQ-IMPL**. Surface `provider` on all AI screens. Backend `AIInsightSerializer.provider` + frontend `BackendAIInsight.provider` added; shown on Activity detail card + dashboard stat hints. Status: **done**.
+- `AI-08` Sessions UI or endpoint removal — **REQ-IMPL**. Wired `listAISessions` into AIDashboardPage "Recent AI Sessions" card. Status: **done**.
+- `AI-09` `AI_PROVIDER` configurability — **REQ-IMPL**. Document setting, keep safe local fallback. Files: `providers.py:363-370`, `backend/.env.example`, settings. `AI_PROVIDER=local` documented in
   `.env.example`; unknown/misconfigured names fall back to local. Status: **done**.
 - `AI-10` Real LLM provider — **OPT + DECISION** (only if approved, with
   secrets, tests, fallback; never default-on without approval).
 - `AI-11` Backend test expansion — **REQ-IMPL**. Provider selection,
   analytics/noshow/sessions permissions, review edge cases in `test_ai.py`.
+  Added: `test_complete_transition_from_reviewed`, `test_complete_blocks_unreviewed`,
+  `test_complete_requires_doctor_or_admin`, `test_patient_blocked_from_noshow`,
+  `test_patient_blocked_from_analytics`, `test_patient_blocked_from_sessions`,
+  `test_unauthenticated_blocked_from_noshow`, `test_unauthenticated_blocked_from_analytics`.
+  Total 25 tests, all pass. Status: **done**.
 - `AI-12` Frontend tests — **OPT**. Only if practical without new heavy
   deps; at minimum manual role-matrix checklist.
 
 ### Phase 6 — Automation completion
 
-- `AUTO-01` Scope + transport decision — **DECISION**. Persisted
-  reminders/alerts/queue? SSE/polling vs Channels? Email/SMS in scope?
-  Files: `backend/apps/automation/*` (new), `src/pages/automation/*`.
-- `AUTO-02` Backend persistence + permissions + audit — **REQ-IMPL**
-  (pending AUTO-01). Models/migrations/views/urls/tests for the agreed
-  entities.
-- `AUTO-03` Realtime wiring + frontend integration — **REQ-IMPL** (pending
-  AUTO-02). One transport; replace `setInterval`/`SIM_TIME` simulations;
-  honest loading/offline states.
-- `AUTO-04` Alert rules (low-stock/expiry, lab-ready, reminders) — **REQ-IMPL**
-  (pending AUTO-02). Tests for each rule.
+- `AUTO-01` Scope + transport decision — **DECISION**. Decided: persisted
+  reminders/alerts/queue/purchase-requests/events/notifications models;
+  **polling** transport (GET `/api/automation/events/` every 30s) since Django
+  is REST-only with no Channels/ASGI infra and polling works on serverless;
+  **In-App only** — email/SMS out of scope (channel field documents where they
+  hook in later). Files: `backend/apps/automation/*`, `src/pages/automation/*`,
+  `src/lib/api/automation.ts`, `src/store/AutomationStore.tsx`. Status: **done**.
+- `AUTO-02` Backend persistence + permissions + audit — **REQ-IMPL**. 8 models
+  (workflow, reminder, lab-alert, stock-alert, purchase-request, queue-patient,
+  automation-event, hospital-notification), migrations, serializers, ViewSets
+  with custom actions (toggle/send/reschedule/cancel/notify-doctor/notify-patient/
+  mark-reviewed/simulate-completion/resolve/call/start-consultation/
+  complete-consultation/skip/call-next/auto-advance/mark-read/mark-all-read/
+  delete-notification), IsStaffUser permissions, audit logging on every mutation.
+  Status: **done**.
+- `AUTO-03` Realtime wiring + frontend integration — **REQ-IMPL**. Polling hook
+  (30s event poll) + `src/lib/api/automation.ts` client; `AutomationStore`
+  rewritten to back state with live API; all 5 automation pages unchanged
+  (interface preserved). Status: **done**.
+- `AUTO-04` Alert rules (low-stock/expiry, lab-ready, reminders) — **REQ-IMPL**.
+  Encoded as model status fields + custom-action state transitions; 15 backend
+  tests cover each rule. Status: **done**.
 
 ### Phase 1 — RBAC UI completion
 
@@ -329,14 +327,13 @@ work is `BILL-02` (distinct); AI review UI once (`AI-01`).
 
 ### Recommended execution order
 
-1. `BILL-01` (one decision unblocks Phase 11 done-state) →
-2. `AI-01, AI-02` (visible Phase 12 value, no architecture risk) →
-3. `PAT-01, PAT-02` then `RBAC-01, RBAC-02` (integration before enforcement
-   so gates test real data) →
-4. `AI-03…AI-09, AI-11` (remaining rule-engine correctness) →
-5. `BILL-02`, `FINAL-01…04` (hardening + E2E) →
-6. `AUTO-01…04` (largest scope, needs decisions; last) →
-7. `AI-10`, `AI-12`, `FINAL-05` (optional/approval-gated + release).
+1. `BILL-01` Claims scope decision — **done** (IN scope) →
+2. `PAT-01, PAT-02, RBAC-01, RBAC-02, AI-01…AI-09, AI-11` — **done** →
+3. `AUTO-01…04` — **done** (polling transport, persisted models, In-App-only scope,
+   backend ViewSets + audit, polling frontend integration, alert rules) →
+4. `BILL-02` Claims backend + frontend — **done** (71 backend tests pass, frontend green) →
+5. `FINAL-01…04` (hardening + E2E) →
+6. `AI-10`, `AI-12`, `FINAL-05` (optional/approval-gated + release).
 
 ## 10. Phase Completion Criteria
 

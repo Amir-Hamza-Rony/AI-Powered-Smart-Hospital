@@ -58,12 +58,12 @@ export function LabAlertsPage() {
         description="Doctor & patient notifications for ready reports · simulated locally"
         actions={
           <Button
-            onClick={() => {
-              const orderId = simulateLabCompletion()
+            onClick={async () => {
+              const orderId = await simulateLabCompletion()
               if (orderId) {
-                success('Lab completion simulated', `${orderId} moved Processing → Ready; notifications sent (mock).`)
+                success('Lab completion simulated', `${orderId} moved Processing → Ready; notifications sent.`)
               } else {
-                error('Nothing to simulate', 'No Processing tests remain in mock state.')
+                error('Nothing to simulate', 'No Processing tests remain.')
               }
             }}
           >
@@ -74,8 +74,8 @@ export function LabAlertsPage() {
 
       <Card className="border-dashed">
         <CardContent className="p-3 text-xs text-muted-foreground">
-          Frontend Demo — Real-time backend integration will be connected later. The simulation button moves one
-          Processing test to Ready and fans out mock notifications, counts, and an activity event.
+          Live backend — the simulation button moves one Processing test to Ready
+          and fans out doctor + patient notifications through the API.
         </CardContent>
       </Card>
 
@@ -216,7 +216,7 @@ export function LabAlertsPage() {
               onClick={() => {
                 if (!detail) return
                 notifyDoctor(detail.id)
-                success('Doctor notified', `${detail.orderedBy} notified (mock).`)
+                success('Doctor notified', `${detail.orderedBy} notified.`)
               }}
             >
               Notify Doctor
@@ -226,7 +226,7 @@ export function LabAlertsPage() {
               onClick={() => {
                 if (!detail) return
                 notifyPatient(detail.id)
-                success('Patient notified', `${detail.patientName} notified (mock).`)
+                success('Patient notified', `${detail.patientName} notified.`)
               }}
             >
               Notify Patient
@@ -236,7 +236,7 @@ export function LabAlertsPage() {
               onClick={() => {
                 if (!detail) return
                 markLabReviewed(detail.id)
-                success('Marked as reviewed', `${detail.labOrderId} reviewed (mock).`)
+                success('Marked as reviewed', `${detail.labOrderId} reviewed.`)
               }}
             >
               Mark as Reviewed
@@ -247,13 +247,12 @@ export function LabAlertsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Real-Time Simulation</CardTitle>
+          <CardTitle className="text-base">Live Automation Events</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           <p>
-            Frontend Demo — Real-time backend integration will be connected later. Use{' '}
-            <strong>Simulate Lab Completion</strong> above to move a Processing test to Ready, fan out doctor +
-            patient notifications, and append events to the automation activity log.
+            Events are fetched from the backend and refreshed every 30s. Use{' '}
+            <strong>Simulate Lab Completion</strong> above to move a Processing test to Ready.
           </p>
         </CardContent>
       </Card>

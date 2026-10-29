@@ -179,3 +179,7 @@ export function reviewInsight(id: string, note?: string) {
     body: note ? { note } : {},
   })
 }
+
+export function completeInsight(id: string) {
+  return apiFetch<BackendAIInsight>(`/ai/insights/${id}/complete/`, { method: 'POST' })
+}

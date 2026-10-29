@@ -496,3 +496,23 @@ class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
                    object_type="AIInsight", object_id=str(insight.id), request=request)
         return success_response(AIInsightSerializer(insight).data,
                                 message="Insight reviewed.")
+
+    @extend_schema(summary="Mark an insight as completed (archive)", request=None)
+    @action(detail=True, methods=["post"])
+    def complete(self, request, *args, **kwargs):
+        if not IsDoctorOrAdmin().has_permission(request, self):
+            return error_response(
+                "Doctor or super admin required.",
+                status_code=status.HTTP_403_FORBIDDEN)
+        insight = self.get_object()
+        if insight.review_status != "Reviewed":
+            return error_response("Only reviewed insights can be completed.",
+                                  status_code=status.HTTP_400_BAD_REQUEST)
+        insight.review_status = "Completed"
+        insight.reviewed_at = timezone.now()
+        insight.save(update_fields=["review_status", "reviewed_at"])
+        log_audit(request.user, "AI_INSIGHT_COMPLETED", "ai",
+                   f"Insight completed: {insight.title}.",
+                   object_type="AIInsight", object_id=str(insight.id), request=request)
+        return success_response(AIInsightSerializer(insight).data,
+                                message="Insight completed.")

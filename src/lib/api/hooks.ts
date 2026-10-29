@@ -146,6 +146,18 @@ export function canUseClinicalAI(role: BackendRole | null): boolean {
   return role === 'SUPER_ADMIN' || role === 'DOCTOR'
 }
 
+export function canManagePatients(role: BackendRole | null): boolean {
+  return isStaffRole(role)
+}
+
+export function canManageDoctors(role: BackendRole | null): boolean {
+  return role === 'SUPER_ADMIN' || role === 'DOCTOR' || role === 'NURSE' || role === 'RECEPTIONIST'
+}
+
+export function canManageAppointments(role: BackendRole | null): boolean {
+  return isStaffRole(role)
+}
+
 export function isStaffRole(role: BackendRole | null): boolean {
   return role !== null && role !== 'PATIENT'
 }
