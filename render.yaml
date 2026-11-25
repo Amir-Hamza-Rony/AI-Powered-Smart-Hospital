@@ -1,6 +1,3 @@
-# Render.com deployment manifest for AI-Powered Smart Hospital backend
-# Create a Web Service + PostgreSQL database on Render, then link them.
-
 services:
   - type: web
     name: smart-hospital-backend
@@ -20,19 +17,11 @@ services:
         value: "https://your-frontend.vercel.app"
       - key: CSRF_TRUSTED_ORIGINS
         value: "https://your-frontend.vercel.app"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: smart-hospital-db
-          property: connectionString
       - key: AI_PROVIDER
         value: "local"
-    disks:
-      - name: smart-hospital-static
-        mountPath: /opt/render/project/src/staticfiles
 
 databases:
   - name: smart-hospital-db
     plan: free
     region: oregon
-    engine: postgresql
-    ipAllowList: []
+    engine: postgres
